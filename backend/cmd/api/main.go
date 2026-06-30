@@ -1,6 +1,6 @@
-// Command api is the synchronous HTTP entrypoint. In Phase 0 it stands up the
-// process: config, logging, dependency wiring, and the liveness/readiness probes.
-// The webhook receiver, tenant API, and portal API are added in later phases.
+// Command api is the synchronous HTTP entrypoint: liveness/readiness probes plus the
+// tenant dashboard and customer portal APIs. The Nomba webhook receiver (Track A) mounts
+// into the same server later.
 package main
 
 import (
@@ -12,9 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/shamigam1/subba/internal/config"
+	httpapi "github.com/shamigam1/subba/internal/http"
 	"github.com/shamigam1/subba/internal/observability"
 	"github.com/shamigam1/subba/internal/platform"
 )
@@ -34,30 +33,7 @@ func main() {
 	defer plat.Close()
 	log.Info().Msg("dependencies connected")
 
-	if cfg.AppEnv != "development" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	router := gin.New()
-	router.Use(gin.Recovery())
-
-	// Liveness: the process is up. Cheap and dependency-free.
-	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-
-	// Readiness: every dependency is reachable. Flips to 503 on dependency loss.
-	router.GET("/readyz", func(c *gin.Context) {
-		checkCtx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-		defer cancel()
-		if err := plat.Ready(checkCtx); err != nil {
-			log.Warn().Err(err).Msg("readiness check failed")
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unavailable", "error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ready"})
-	})
-
-	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: router}
+	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewRouter(cfg, log, plat)}
 
 	go func() {
 		log.Info().Str("addr", cfg.HTTPAddr).Msg("api listening")
@@ -66,7 +42,6 @@ func main() {
 		}
 	}()
 
-	// Graceful shutdown on SIGINT/SIGTERM.
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop

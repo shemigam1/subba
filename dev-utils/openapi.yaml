@@ -403,8 +403,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [email]
+              required: [tenant_id, email]
               properties:
+                tenant_id: { type: string, format: uuid, description: Which tenant's portal (the hosted portal is per-tenant) }
                 email: { type: string, format: email }
       responses:
         '202':
