@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         uuid.UUID          `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	Name       *string            `json:"name"`
+	KeyHash    string             `json:"key_hash"`
+	KeyPrefix  string             `json:"key_prefix"`
+	CreatedAt  time.Time          `json:"created_at"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+}
+
 type Customer struct {
 	ID                  uuid.UUID `json:"id"`
 	TenantID            uuid.UUID `json:"tenant_id"`
@@ -61,6 +72,16 @@ type Plan struct {
 	UpdatedAt time.Time          `json:"updated_at"`
 }
 
+type PortalAccessToken struct {
+	ID         uuid.UUID          `json:"id"`
+	TenantID   uuid.UUID          `json:"tenant_id"`
+	CustomerID uuid.UUID          `json:"customer_id"`
+	TokenHash  string             `json:"token_hash"`
+	ExpiresAt  time.Time          `json:"expires_at"`
+	UsedAt     pgtype.Timestamptz `json:"used_at"`
+	CreatedAt  time.Time          `json:"created_at"`
+}
+
 type ProcessedEvent struct {
 	RequestID   string             `json:"request_id"`
 	Consumer    string             `json:"consumer"`
@@ -94,4 +115,8 @@ type Tenant struct {
 	ApiKeyHash        *string   `json:"api_key_hash"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	PasswordHash      *string   `json:"password_hash"`
+	NombaSubaccountID *string   `json:"nomba_subaccount_id"`
+	WebhookUrl        *string   `json:"webhook_url"`
+	WebhookSecret     *string   `json:"webhook_secret"`
 }

@@ -12,29 +12,19 @@ import (
 )
 
 const createTenant = `-- name: CreateTenant :one
-INSERT INTO tenants (name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at
+INSERT INTO tenants (name, email, password_hash)
+VALUES ($1, $2, $3)
+RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret
 `
 
 type CreateTenantParams struct {
-	Name              string  `json:"name"`
-	Email             string  `json:"email"`
-	NombaAccountID    *string `json:"nomba_account_id"`
-	NombaClientID     *string `json:"nomba_client_id"`
-	NombaClientSecret *string `json:"nomba_client_secret"`
-	ApiKeyHash        *string `json:"api_key_hash"`
+	Name         string  `json:"name"`
+	Email        string  `json:"email"`
+	PasswordHash *string `json:"password_hash"`
 }
 
 func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error) {
-	row := q.db.QueryRow(ctx, createTenant,
-		arg.Name,
-		arg.Email,
-		arg.NombaAccountID,
-		arg.NombaClientID,
-		arg.NombaClientSecret,
-		arg.ApiKeyHash,
-	)
+	row := q.db.QueryRow(ctx, createTenant, arg.Name, arg.Email, arg.PasswordHash)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -46,16 +36,20 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.ApiKeyHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
+		&i.NombaSubaccountID,
+		&i.WebhookUrl,
+		&i.WebhookSecret,
 	)
 	return i, err
 }
 
-const getTenantByAPIKeyHash = `-- name: GetTenantByAPIKeyHash :one
-SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at FROM tenants WHERE api_key_hash = $1
+const getTenantByEmail = `-- name: GetTenantByEmail :one
+SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret FROM tenants WHERE email = $1
 `
 
-func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash *string) (Tenant, error) {
-	row := q.db.QueryRow(ctx, getTenantByAPIKeyHash, apiKeyHash)
+func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, error) {
+	row := q.db.QueryRow(ctx, getTenantByEmail, email)
 	var i Tenant
 	err := row.Scan(
 		&i.ID,
@@ -67,17 +61,21 @@ func (q *Queries) GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash *string)
 		&i.ApiKeyHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
+		&i.NombaSubaccountID,
+		&i.WebhookUrl,
+		&i.WebhookSecret,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
 
-SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at FROM tenants WHERE id = $1
+SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret FROM tenants WHERE id = $1
 `
 
-// Starter queries to validate the sqlc pipeline. Real query sets per domain
-// (customers, plans, subscriptions, invoices) are added in Phase 1.
+// Auth lookups run on the admin pool (pre-session, RLS-bypassing); everything else
+// runs tenant-scoped via WithTenant.
 func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error) {
 	row := q.db.QueryRow(ctx, getTenantByID, id)
 	var i Tenant
@@ -91,6 +89,55 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.ApiKeyHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
+		&i.NombaSubaccountID,
+		&i.WebhookUrl,
+		&i.WebhookSecret,
+	)
+	return i, err
+}
+
+const updateTenantSettings = `-- name: UpdateTenantSettings :one
+UPDATE tenants SET
+    nomba_account_id    = COALESCE($2, nomba_account_id),
+    nomba_subaccount_id = COALESCE($3, nomba_subaccount_id),
+    nomba_client_id     = COALESCE($4, nomba_client_id),
+    nomba_client_secret = COALESCE($5, nomba_client_secret)
+WHERE id = $1
+RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret
+`
+
+type UpdateTenantSettingsParams struct {
+	ID                uuid.UUID `json:"id"`
+	NombaAccountID    *string   `json:"nomba_account_id"`
+	NombaSubaccountID *string   `json:"nomba_subaccount_id"`
+	NombaClientID     *string   `json:"nomba_client_id"`
+	NombaClientSecret *string   `json:"nomba_client_secret"`
+}
+
+func (q *Queries) UpdateTenantSettings(ctx context.Context, arg UpdateTenantSettingsParams) (Tenant, error) {
+	row := q.db.QueryRow(ctx, updateTenantSettings,
+		arg.ID,
+		arg.NombaAccountID,
+		arg.NombaSubaccountID,
+		arg.NombaClientID,
+		arg.NombaClientSecret,
+	)
+	var i Tenant
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.NombaAccountID,
+		&i.NombaClientID,
+		&i.NombaClientSecret,
+		&i.ApiKeyHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordHash,
+		&i.NombaSubaccountID,
+		&i.WebhookUrl,
+		&i.WebhookSecret,
 	)
 	return i, err
 }
