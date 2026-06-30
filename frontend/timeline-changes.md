@@ -1,0 +1,1 @@
+- **2026-06-29**: Core Engine Phase 1 execution completed. Handled idempotency deduplication, HMAC-SHA256 signature verification for webhooks, and Supabase client setup. Fixed token race condition with promise deduplication. Cached admin client at module level to optimize connections. Set route handler runtime to Node.js for crypto availability.
