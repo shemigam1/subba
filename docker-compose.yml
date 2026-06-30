@@ -1,0 +1,59 @@
+# Phase 0 infrastructure: Postgres (system of record), Redis (cache/idempotency
+# fast-path + shared OAuth token), RabbitMQ (event core). The Go app runs on the
+# host during development and points at these via localhost (see backend/.env.example).
+services:
+  postgres:
+    image: postgres:17
+    container_name: subba_postgres
+    environment:
+      POSTGRES_DB: subba
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Host 5433 to avoid clashing with a system Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d subba"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: subba_redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: subba_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI
+      - "15692:15692"  # prometheus metrics (Phase 5)
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitdata:
