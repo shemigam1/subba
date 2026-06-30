@@ -11,11 +11,46 @@ import (
 )
 
 type Querier interface {
+	CancelSubscription(ctx context.Context, arg CancelSubscriptionParams) (Subscription, error)
+	ConsumePortalToken(ctx context.Context, tokenHash string) (int64, error)
+	CountActiveSubscriptions(ctx context.Context) (int64, error)
+	CountFailedInvoices(ctx context.Context) (int64, error)
+	CountPaymentsToday(ctx context.Context) (int64, error)
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
+	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreatePlan(ctx context.Context, arg CreatePlanParams) (Plan, error)
+	CreatePortalToken(ctx context.Context, arg CreatePortalTokenParams) (PortalAccessToken, error)
+	CreateSubscription(ctx context.Context, arg CreateSubscriptionParams) (Subscription, error)
 	CreateTenant(ctx context.Context, arg CreateTenantParams) (Tenant, error)
-	GetTenantByAPIKeyHash(ctx context.Context, apiKeyHash *string) (Tenant, error)
-	// Starter queries to validate the sqlc pipeline. Real query sets per domain
-	// (customers, plans, subscriptions, invoices) are added in Phase 1.
+	// Resolve a bearer key to its tenant. Runs on the admin pool (pre-tenant-scope).
+	GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
+	GetCustomerByEmail(ctx context.Context, email string) (Customer, error)
+	GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error)
+	GetPlan(ctx context.Context, id uuid.UUID) (Plan, error)
+	// Resolve + consume a magic-link token. Runs on the admin pool (pre-session).
+	GetPortalTokenByHash(ctx context.Context, tokenHash string) (PortalAccessToken, error)
+	GetSubscription(ctx context.Context, id uuid.UUID) (Subscription, error)
+	GetSubscriptionByCustomer(ctx context.Context, customerID uuid.UUID) (Subscription, error)
+	GetTenantByEmail(ctx context.Context, email string) (Tenant, error)
+	// Auth lookups run on the admin pool (pre-session, RLS-bypassing); everything else
+	// runs tenant-scoped via WithTenant.
 	GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, error)
+	ListAPIKeys(ctx context.Context) ([]ApiKey, error)
+	ListCustomers(ctx context.Context, arg ListCustomersParams) ([]Customer, error)
+	ListInvoiceItems(ctx context.Context, invoiceID uuid.UUID) ([]InvoiceItem, error)
+	ListInvoicesByCustomer(ctx context.Context, customerID uuid.UUID) ([]Invoice, error)
+	ListPlans(ctx context.Context, includeDeleted bool) ([]Plan, error)
+	RevenueSeries(ctx context.Context) ([]RevenueSeriesRow, error)
+	RevokeAPIKey(ctx context.Context, id uuid.UUID) (int64, error)
+	SetCustomerCardToken(ctx context.Context, arg SetCustomerCardTokenParams) (Customer, error)
+	SoftDeletePlan(ctx context.Context, id uuid.UUID) (int64, error)
+	// Monthly recurring revenue: normalize yearly plans to a monthly figure (minor units).
+	SumMRR(ctx context.Context) (int64, error)
+	TouchAPIKey(ctx context.Context, id uuid.UUID) error
+	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
+	UpdatePlan(ctx context.Context, arg UpdatePlanParams) (Plan, error)
+	UpdateTenantSettings(ctx context.Context, arg UpdateTenantSettingsParams) (Tenant, error)
 }
 
 var _ Querier = (*Queries)(nil)
