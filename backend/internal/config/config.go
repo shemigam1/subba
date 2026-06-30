@@ -24,10 +24,20 @@ type Config struct {
 	RedisURL    string
 	RabbitMQURL string
 
+	// PortalBaseURL is the public origin of the hosted customer portal; magic-link
+	// access URLs are built from it.
+	PortalBaseURL string
+
+	// Resend transactional email (magic links, receipts, dunning).
+	ResendAPIKey   string
+	EmailFromName  string // display name, e.g. "Subba"
+	EmailFromEmail string // verified sender, e.g. "notify@mail.subba.app"
+
 	NombaBaseURL       string
 	NombaClientID      string
 	NombaClientSecret  string
-	NombaAccountID     string
+	NombaAccountID     string // parent account ID, sent in the accountId header
+	NombaSubAccountID  string // sub-account that scopes calls (revenue split target)
 	NombaWebhookSecret string
 }
 
@@ -44,10 +54,15 @@ func Load() (*Config, error) {
 		AdminDatabaseURL:   os.Getenv("ADMIN_DATABASE_URL"),
 		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
 		RabbitMQURL:        getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+		PortalBaseURL:      getenv("PORTAL_BASE_URL", "http://localhost:3000/pay"),
+		ResendAPIKey:       os.Getenv("RESEND_API_KEY"),
+		EmailFromName:      getenv("EMAIL_FROM_NAME", "Subba"),
+		EmailFromEmail:     os.Getenv("EMAIL_FROM_EMAIL"),
 		NombaBaseURL:       getenv("NOMBA_BASE_URL", "https://api.nomba.com"),
 		NombaClientID:      os.Getenv("NOMBA_CLIENT_ID"),
 		NombaClientSecret:  os.Getenv("NOMBA_CLIENT_SECRET"),
 		NombaAccountID:     os.Getenv("NOMBA_ACCOUNT_ID"),
+		NombaSubAccountID:  os.Getenv("NOMBA_SUBACCOUNT_ID"),
 		NombaWebhookSecret: os.Getenv("NOMBA_WEBHOOK_SECRET"),
 	}
 
