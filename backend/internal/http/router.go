@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+
 	"github.com/shamigam1/subba/internal/auth"
 	"github.com/shamigam1/subba/internal/config"
 	"github.com/shamigam1/subba/internal/http/dashboard"
@@ -18,6 +20,7 @@ import (
 	"github.com/shamigam1/subba/internal/http/portal"
 	"github.com/shamigam1/subba/internal/http/render"
 	"github.com/shamigam1/subba/internal/notify"
+	"github.com/shamigam1/subba/internal/observability"
 	"github.com/shamigam1/subba/internal/platform"
 )
 
@@ -26,6 +29,11 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform) 
 	if cfg.AppEnv != "development" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+
+	// Expose connection-pool saturation to Prometheus (ignore re-registration in tests).
+	_ = prometheus.Register(observability.NewPoolCollector(map[string]*pgxpool.Pool{
+		"tenant": plat.DB, "admin": plat.AdminDB,
+	}))
 
 	sessions := auth.NewSessions(plat.Redis)
 	mailer := notify.NewMailer(cfg.ResendAPIKey, cfg.EmailFromName, cfg.EmailFromEmail, log)

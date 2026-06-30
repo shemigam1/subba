@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # The API runs on the host during development; Prometheus reaches it via the
+  # docker host gateway. In a containerised deploy, change to the api service name.
+  - job_name: subba-api
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+
+  # RabbitMQ's built-in Prometheus plugin (enabled in infra/rabbitmq/enabled_plugins).
+  # Exposes queue depth and dead-letter depth — the primary fault signals.
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
