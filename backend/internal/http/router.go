@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
@@ -22,10 +23,11 @@ import (
 	"github.com/shamigam1/subba/internal/notify"
 	"github.com/shamigam1/subba/internal/observability"
 	"github.com/shamigam1/subba/internal/platform"
+	"github.com/shamigam1/subba/internal/webhook"
 )
 
 // NewRouter builds the fully-wired HTTP handler.
-func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform) http.Handler {
+func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, brokerCh *amqp.Channel) http.Handler {
 	if cfg.AppEnv != "development" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -103,6 +105,17 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform) 
 	p.GET("/payment-method", prt.PaymentMethod)
 	p.POST("/payment-method/card", prt.SaveCard)
 	p.GET("/virtual-account", prt.VirtualAccount)
+
+	// --- webhooks (public, signature-verified) ---
+	wh := &webhook.Handler{
+		WebhookSecret: cfg.NombaWebhookSecret,
+		Tenants:       webhook.NewDBTenantLookup(plat.DB),
+		Customers:     webhook.NewDBCustomerLookup(plat.DB),
+		Subscriptions: webhook.NewDBSubscriptionLookup(plat.DB),
+		Publisher:     webhook.NewBrokerPublisher(brokerCh),
+		Logger:        log,
+	}
+	r.POST("/webhooks/nomba", gin.WrapH(wh))
 
 	return r
 }
