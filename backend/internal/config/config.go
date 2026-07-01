@@ -3,6 +3,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 
@@ -27,6 +28,13 @@ type Config struct {
 	// PortalBaseURL is the public origin of the hosted customer portal; magic-link
 	// access URLs are built from it.
 	PortalBaseURL string
+	// DashboardBaseURL is the public origin of the tenant dashboard, allowed as a
+	// CORS origin alongside the portal.
+	DashboardBaseURL string
+
+	// MasterEncryptionKey (32 bytes, decoded from base64) encrypts tenant secrets
+	// such as the Nomba client secret before they are stored.
+	MasterEncryptionKey []byte
 
 	// Resend transactional email (magic links, receipts, dunning).
 	ResendAPIKey   string
@@ -55,6 +63,7 @@ func Load() (*Config, error) {
 		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
 		RabbitMQURL:        getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 		PortalBaseURL:      getenv("PORTAL_BASE_URL", "http://localhost:3000/pay"),
+		DashboardBaseURL:   os.Getenv("DASHBOARD_BASE_URL"),
 		ResendAPIKey:       os.Getenv("RESEND_API_KEY"),
 		EmailFromName:      getenv("EMAIL_FROM_NAME", "Subba"),
 		EmailFromEmail:     os.Getenv("EMAIL_FROM_EMAIL"),
@@ -72,6 +81,20 @@ func Load() (*Config, error) {
 	if cfg.AdminDatabaseURL == "" {
 		return nil, fmt.Errorf("ADMIN_DATABASE_URL is required")
 	}
+
+	rawKey := os.Getenv("MASTER_ENCRYPTION_KEY")
+	if rawKey == "" {
+		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY is required")
+	}
+	key, err := base64.StdEncoding.DecodeString(rawKey)
+	if err != nil {
+		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY must be base64: %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY must decode to 32 bytes, got %d", len(key))
+	}
+	cfg.MasterEncryptionKey = key
+
 	return cfg, nil
 }
 
