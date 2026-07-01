@@ -16,6 +16,7 @@ import (
 
 	"github.com/shamigam1/subba/internal/auth"
 	"github.com/shamigam1/subba/internal/config"
+	"github.com/shamigam1/subba/internal/crypto"
 	"github.com/shamigam1/subba/internal/http/dto"
 	"github.com/shamigam1/subba/internal/http/middleware"
 	"github.com/shamigam1/subba/internal/http/render"
@@ -591,11 +592,19 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 		NombaAccountID    *string `json:"nomba_account_id"`
 		NombaSubaccountID *string `json:"nomba_subaccount_id"`
 		NombaClientID     *string `json:"nomba_client_id"`
-		NombaClientSecret *string `json:"nomba_client_secret"` // TODO: encrypt at rest before storing
+		NombaClientSecret *string `json:"nomba_client_secret"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		render.Err(c, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
+	}
+	if req.NombaClientSecret != nil {
+		enc, err := crypto.EncryptSecret(h.cfg.MasterEncryptionKey, *req.NombaClientSecret)
+		if err != nil {
+			render.Err(c, http.StatusInternalServerError, "internal", "could not secure settings")
+			return
+		}
+		req.NombaClientSecret = &enc
 	}
 	var t db.Tenant
 	if err := h.tenantQ(c, func(q *db.Queries) (e error) {
