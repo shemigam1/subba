@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { apiClient } from "@/lib/api/client";
-import { naira } from "@/lib/format/money";
-import type { components } from "@/lib/api/types";
+import { api } from "@/lib/api";
+import { naira } from "@/lib/format";
+import type { components } from "@/lib/api/v1";
 
 type Plan = components["schemas"]["Plan"];
 
@@ -26,8 +26,10 @@ export default function PlansPage() {
   }, []);
 
   async function fetchPlans() {
-    const { data, error } = await apiClient.GET("/plans");
-    if (data) {
+    const { data, error, response } = await api.GET("/plans");
+    if (!response.ok) {
+      console.error(error);
+    } else if (data) {
       setPlans(data);
     } else {
       console.error(error);
@@ -40,7 +42,7 @@ export default function PlansPage() {
     setIsSubmitting(true);
     const amountMinor = Math.round(parseFloat(amount) * 100);
     
-    const { data, error } = await apiClient.POST("/plans", {
+    const { data, error, response } = await api.POST("/plans", {
       body: {
         name,
         amount_minor: amountMinor,
@@ -49,7 +51,9 @@ export default function PlansPage() {
       }
     });
 
-    if (data) {
+    if (!response.ok) {
+      console.error(error);
+    } else if (data) {
       setPlans([data, ...plans]);
       setIsDrawerOpen(false);
       setName("");

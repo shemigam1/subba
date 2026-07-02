@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Search, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { apiClient } from "@/lib/api/client";
-import type { components } from "@/lib/api/types";
+import { api } from "@/lib/api";
+import type { components } from "@/lib/api/v1";
 
 type Customer = components["schemas"]["Customer"];
 
@@ -16,11 +16,11 @@ export default function CustomersPage() {
 
   useEffect(() => {
     async function fetchCustomers() {
-      const { data, error } = await apiClient.GET("/customers");
-      if (data?.data) {
-        setCustomers(data.data);
-      } else {
+      const { data, error, response } = await api.GET("/customers");
+      if (!response.ok) {
         console.error(error);
+      } else if (data?.data) {
+        setCustomers(data.data);
       }
       setLoading(false);
     }

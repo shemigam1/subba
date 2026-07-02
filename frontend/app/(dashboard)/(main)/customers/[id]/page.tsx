@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, User, CreditCard } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
-import type { components } from "@/lib/api/types";
+import { api } from "@/lib/api";
+import type { components } from "@/lib/api/v1";
 
 type Customer = components["schemas"]["Customer"];
 
@@ -14,13 +14,13 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
 
   useEffect(() => {
     async function fetchCustomer() {
-      const { data, error } = await apiClient.GET("/customers/{id}", {
+      const { data, error, response } = await api.GET("/customers/{id}", {
         params: { path: { id: params.id } }
       });
-      if (data) {
-        setCustomer(data);
-      } else {
+      if (!response.ok) {
         console.error(error);
+      } else if (data) {
+        setCustomer(data);
       }
       setLoading(false);
     }

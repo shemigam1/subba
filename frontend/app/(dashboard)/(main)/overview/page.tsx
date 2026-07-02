@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Activity, CreditCard, DollarSign, Users, AlertCircle } from "lucide-react";
-import { apiClient } from "@/lib/api/client";
-import { naira } from "@/lib/format/money";
-import type { components } from "@/lib/api/types";
+import { api } from "@/lib/api";
+import { naira } from "@/lib/format";
+import type { components } from "@/lib/api/v1";
 
 type AnalyticsOverview = components["schemas"]["AnalyticsOverview"];
 
@@ -14,7 +14,7 @@ export default function OverviewPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: analytics, error } = await apiClient.GET("/analytics/overview");
+      const { data: analytics, error } = await api.GET("/analytics/overview");
       if (analytics) {
         setData(analytics);
       } else {
