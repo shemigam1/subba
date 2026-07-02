@@ -437,6 +437,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PortalContext' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /portal/logout:
+    post:
+      tags: [Portal]
+      summary: Log out of the portal (revokes the session, clears the cookie)
+      security: []
+      responses:
+        '204': { description: No Content }
   /portal/me:
     get:
       tags: [Portal]
