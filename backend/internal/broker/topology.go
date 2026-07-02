@@ -34,15 +34,33 @@ func DeclareTopology(ch *amqp.Channel) error {
 	}
 
 	// ── Declare each queue group ─────────────────────────────────────────────
+	// primaryBinding is used for retry-queue DLX re-routing; extraBindings
+	// adds additional routing-key subscriptions to the main queue only.
 	queues := []struct {
-		main    string
-		retry   string
-		dead    string
-		binding string
+		main          string
+		retry         string
+		dead          string
+		primaryBinding string
+		extraBindings  []string
 	}{
-		{QueueInvoicing, QueueInvoicingRetry, QueueInvoicingDead, RoutingKeyPaymentSucceeded},
-		{QueuePayouts, QueuePayoutsRetry, QueuePayoutsDead, RoutingKeyPaymentSucceeded},
-		{QueueSubscriptionState, QueueSubscriptionStateRetry, QueueSubscriptionStateDead, RoutingKeyPaymentSucceeded},
+		// invoicing: receives payments AND scheduled renewals so it can create invoices.
+		{
+			QueueInvoicing, QueueInvoicingRetry, QueueInvoicingDead,
+			RoutingKeyPaymentSucceeded,
+			[]string{RoutingKeySubscriptionRenew},
+		},
+		// payouts: only fires on confirmed inbound payments (revenue split).
+		{
+			QueuePayouts, QueuePayoutsRetry, QueuePayoutsDead,
+			RoutingKeyPaymentSucceeded,
+			nil,
+		},
+		// subscription_state: must see both payment confirmation and scheduler-driven renewals.
+		{
+			QueueSubscriptionState, QueueSubscriptionStateRetry, QueueSubscriptionStateDead,
+			RoutingKeyPaymentSucceeded,
+			[]string{RoutingKeySubscriptionRenew},
+		},
 	}
 
 	for _, q := range queues {
@@ -64,7 +82,7 @@ func DeclareTopology(ch *amqp.Channel) error {
 		// Retry queue — messages sit here for TTL then go back to main queue
 		retryArgs := amqp.Table{
 			"x-dead-letter-exchange":    ExchangeName,
-			"x-dead-letter-routing-key": q.binding,
+			"x-dead-letter-routing-key": q.primaryBinding,
 			"x-message-ttl":             int32(30_000), // 30s first retry; workers increment on nack
 		}
 		if _, err := ch.QueueDeclare(
@@ -94,22 +112,19 @@ func DeclareTopology(ch *amqp.Channel) error {
 			return err
 		}
 
-		// Bind main queue to the events exchange
-		if err := ch.QueueBind(q.main, q.binding, ExchangeName, false, nil); err != nil {
+		// Primary binding (also used by the retry queue's x-dead-letter-routing-key)
+		if err := ch.QueueBind(q.main, q.primaryBinding, ExchangeName, false, nil); err != nil {
 			return err
 		}
-	}
 
-	// subscription_state also binds to subscription.renew
-	if err := ch.QueueBind(
-		QueueSubscriptionState,
-		RoutingKeySubscriptionRenew,
-		ExchangeName,
-		false,
-		nil,
-	); err != nil {
-		return err
+		// Additional bindings (subscription.renew etc.)
+		for _, rk := range q.extraBindings {
+			if err := ch.QueueBind(q.main, rk, ExchangeName, false, nil); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
 }
+

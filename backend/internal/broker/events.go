@@ -66,10 +66,11 @@ type NombaCustomer struct {
 type Event struct {
     RequestID      string `json:"requestId"`       // from NombaWebhookPayload.RequestID
     TenantID       string `json:"tenantId"`        // looked up from DB via virtual account
-    EventType      string `json:"eventType"`       // your routing key, e.g. "payment.succeeded"
-    Amount         int64  `json:"amount"`          // in kobo — convert from Nomba's float
+    EventType      string `json:"eventType"`       // canonical routing key, e.g. "payment.succeeded"
+    Amount         int64  `json:"amount"`          // in kobo — convert from Nomba's float; 0 on subscription.renew
     Currency       string `json:"currency"`        // always "NGN" for now
     CustomerID     string `json:"customerId"`      // looked up from DB via virtual account
     SubscriptionID string `json:"subscriptionId"`  // looked up from DB via customer
     NombaReference string `json:"nombaReference,omitempty"` // NombaTransaction.TransactionID; absent on subscription.renew
-}
+    PlanID         string `json:"planId,omitempty"`         // plan that triggered subscription.renew; absent on payment.succeeded
+}

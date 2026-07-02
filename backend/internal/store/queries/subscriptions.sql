@@ -19,3 +19,24 @@ UPDATE subscriptions SET
     canceled_at          = CASE WHEN sqlc.arg('at_period_end') THEN canceled_at ELSE now() END
 WHERE id = sqlc.arg('id')
 RETURNING *;
+
+-- name: AdvanceSubscriptionPeriod :one
+-- Stamps the billing period forward by one interval (month or year) and
+-- transitions status to 'active'. Called by the subscription_state handler
+-- when a payment.succeeded event confirms a funded renewal.
+-- new_period_start and new_period_end are computed in Go from the plan interval.
+UPDATE subscriptions
+SET status               = 'active',
+    current_period_start = sqlc.arg('new_period_start'),
+    current_period_end   = sqlc.arg('new_period_end'),
+    cancel_at_period_end = false
+WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- name: SetSubscriptionStatus :one
+-- General-purpose status writer used by the subscription_state handler for
+-- past_due and unpaid transitions when a payment fails.
+UPDATE subscriptions
+SET status = sqlc.arg('status')
+WHERE id   = sqlc.arg('id')
+RETURNING *;

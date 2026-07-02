@@ -1,6 +1,9 @@
 // Command api is the synchronous HTTP entrypoint: liveness/readiness probes plus the
 // tenant dashboard and customer portal APIs. The Nomba webhook receiver (Track A) mounts
-// into the same server later.
+// into the same server.
+//
+// Topology declaration and async consumer startup live in cmd/worker — the API process
+// only needs the broker channel for publishing webhook events to the exchange.
 package main
 
 import (
@@ -32,17 +35,14 @@ func main() {
 	ctx := context.Background()
 
 	// =================================Connect to RabbitMQ================================================
+	// The API only needs a single channel for publishing; topology is declared
+	// exclusively by cmd/worker on startup.
 	bc, err := broker.Connect(cfg.RabbitMQURL)
 	if err != nil {
 		log.Fatal().Err(err).Msg("rabbitmq connect error")
 	}
 	defer bc.Close()
-
-	// Declare topology — api owns this, workers/scheduler assume it exists
-	if err := broker.DeclareTopology(bc.Ch); err != nil {
-		log.Fatal().Err(err).Msg("topology declare error")
-	}
-	log.Info().Msg("rabbitmq topology declared successfully")
+	log.Info().Msg("rabbitmq connected")
 
 	// =================================Connect to Redis====================================
 	redisOpt, err := redis.ParseURL(cfg.RedisURL)
@@ -56,6 +56,7 @@ func main() {
 		BaseURL:      cfg.NombaBaseURL,
 		ClientID:     cfg.NombaClientID,
 		ClientSecret: cfg.NombaClientSecret,
+		AccountID:    cfg.NombaAccountID,
 		Redis:        rdb,
 	})
 	_ = nombaClient // TODO: inject into webhook handler once built

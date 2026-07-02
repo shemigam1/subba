@@ -47,6 +47,7 @@ func (c *Client) fetchToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accountId", c.accountID)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
