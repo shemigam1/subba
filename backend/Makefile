@@ -50,3 +50,7 @@ tidy: ## Sync go.mod/go.sum
 .PHONY: build
 build: ## Compile all binaries
 	go build ./...
+
+.PHONY: test
+test: ## Run all tests (integration tests skip when infra is down)
+	go test ./...
