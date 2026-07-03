@@ -62,3 +62,6 @@ build-api: ## Compile only the API binary
 .PHONY: build-worker
 build-worker: ## Compile only the worker binary
 	go build -o bin/worker ./cmd/worker
+.PHONY: test
+test: ## Run all tests (integration tests skip when infra is down)
+	go test ./...

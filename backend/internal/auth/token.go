@@ -8,10 +8,13 @@ import (
 )
 
 // RandomToken returns a 32-byte cryptographically random, URL-safe token. Used for
-// session ids, magic-link tokens, and API-key secrets.
+// session ids, magic-link tokens, and API-key secrets. Panics if the system CSPRNG
+// fails, since a silently zeroed buffer would make every token predictable.
 func RandomToken() string {
 	b := make([]byte, 32)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("auth: crypto/rand unavailable: " + err.Error())
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 

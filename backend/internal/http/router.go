@@ -120,12 +120,14 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, 
 	return r
 }
 
-// allowedOrigins derives CORS origins from the configured portal URL plus the local
-// dev frontend.
+// allowedOrigins derives CORS origins from the configured portal and dashboard
+// URLs plus the local dev frontend.
 func allowedOrigins(cfg *config.Config) []string {
 	origins := []string{"http://localhost:3000"}
-	if u, err := url.Parse(cfg.PortalBaseURL); err == nil && u.Scheme != "" && u.Host != "" {
-		origins = append(origins, u.Scheme+"://"+u.Host)
+	for _, raw := range []string{cfg.PortalBaseURL, cfg.DashboardBaseURL} {
+		if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
+			origins = append(origins, u.Scheme+"://"+u.Host)
+		}
 	}
 	return origins
 }
