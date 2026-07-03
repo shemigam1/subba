@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { naira } from "@/lib/format";
 import type { components } from "@/lib/api/v1";
@@ -11,58 +12,51 @@ import type { components } from "@/lib/api/v1";
 type Plan = components["schemas"]["Plan"];
 
 export default function PlansPage() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   // Form state
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [interval, setInterval] = useState<"month" | "year">("month");
 
-  useEffect(() => {
-    fetchPlans();
-  }, []);
+  // Data Fetching
+  const { data: plans = [], isLoading } = useQuery({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/plans");
+      if (error) throw error;
+      return data as Plan[];
+    },
+  });
 
-  async function fetchPlans() {
-    const { data, error, response } = await api.GET("/plans");
-    if (!response.ok) {
-      console.error(error);
-    } else if (data) {
-      setPlans(data);
-    } else {
-      console.error(error);
-    }
-    setLoading(false);
-  }
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setIsSubmitting(true);
-    const amountMinor = Math.round(parseFloat(amount) * 100);
-    
-    const { data, error, response } = await api.POST("/plans", {
-      body: {
-        name,
-        amount_minor: amountMinor,
-        currency: "NGN",
-        interval,
-      }
-    });
-
-    if (!response.ok) {
-      console.error(error);
-    } else if (data) {
-      setPlans([data, ...plans]);
+  // Data Mutation
+  const createPlan = useMutation({
+    mutationFn: async () => {
+      const amountMinor = Math.round(parseFloat(amount) * 100);
+      const { data, error } = await api.POST("/plans", {
+        body: {
+          name,
+          amount_minor: amountMinor,
+          currency: "NGN",
+          interval,
+        },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
       setIsDrawerOpen(false);
       setName("");
       setAmount("");
       setInterval("month");
-    } else {
-      console.error(error);
-    }
-    setIsSubmitting(false);
+    },
+  });
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    createPlan.mutate();
   }
 
   return (
@@ -80,7 +74,7 @@ export default function PlansPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <div className="p-8 text-center text-slate-500 animate-pulse">Loading plans...</div>
         ) : plans.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center">
@@ -181,13 +175,17 @@ export default function PlansPage() {
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
               <Button type="button" variant="ghost" onClick={() => setIsDrawerOpen(false)}>Cancel</Button>
-              <Button type="submit" form="create-plan-form" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Plan"}
+              <Button type="submit" form="create-plan-form" disabled={createPlan.isPending}>
+                {createPlan.isPending ? "Creating..." : "Create Plan"}
               </Button>
             </div>
+            {createPlan.isError && (
+              <div className="p-4 bg-red-50 text-red-700 text-sm">Failed to create plan.</div>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+
