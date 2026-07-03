@@ -52,13 +52,17 @@ Subba is split into two primary components: the **Frontend SPA** and the **Go AP
 1. **The API Edge:** Receives webhooks from Nomba and authenticates incoming Merchant/Customer requests.
 2. **The Message Bus (RabbitMQ):** When a webhook arrives (e.g. a transfer succeeds), the API immediately publishes it to an exchange and returns `200 OK` to Nomba.
 3. **The Worker Pool:** Independent Go consumers subscribe to the broker. One consumer updates the Subscription State, another handles Payout generation, and a third triggers email receipts. If Payouts fail, they hit a DLX and retry later, while Subscriptions are still updated instantly.
+4. **The Scheduler:** A standalone cron-driven Go process that continuously sweeps Postgres for active subscriptions whose billing periods have elapsed, publishing `subscription.renew` events into the broker.
 
 ## Project Structure
 
 ```text
 subba/
-├── backend/                  # The Go API and Worker Engine
-│   ├── cmd/api/              # Entry point for the HTTP server
+├── backend/                  # The Go API, Worker Engine, and Scheduler
+│   ├── cmd/
+│   │   ├── api/              # Entry point for the HTTP server
+│   │   ├── scheduler/        # Entry point for the Renewal Scheduler
+│   │   └── worker/           # Entry point for the RabbitMQ consumers
 │   ├── internal/
 │   │   ├── auth/             # Session management (Redis) and password hashing
 │   │   ├── http/             # Gin router, middleware, and route handlers
@@ -125,6 +129,8 @@ NEXT_PUBLIC_API_MODE=live # Set to "mock" to use MSW for local UI dev without th
 ### Backend
 1. Apply migrations: `make migrate-up` (requires `golang-migrate`)
 2. Start the API server: `go run cmd/api/main.go`
+3. Start the RabbitMQ Workers: `go run cmd/worker/main.go`
+4. Start the Scheduler: `go run cmd/scheduler/main.go`
 
 ### Frontend
 1. Install dependencies: `npm install`
@@ -166,7 +172,6 @@ The Go backend exposes a robust JSON REST API, versioned at `/v1`.
 
 ## Future Improvements
 
-- **Cron Scheduler:** Finalize the distributed cron job (using a Redis lock) to poll for due subscriptions and trigger the billing RabbitMQ events daily.
 - **UI Polish:** Replace the `[ Recharts LineChart Placeholder ]` on the Overview page with live graphical data representations.
 - **Webhooks to Tenants:** Allow merchants to register their own webhook URLs to receive events when Subba successfully charges their customers.
 

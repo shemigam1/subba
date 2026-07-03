@@ -9,6 +9,7 @@ The core infrastructure for the Nomba subscription engine is live:
 - Core routes for Tenants (Dashboard) and Customers (Portal).
 - Added PATCH /customers/:id to close the final loop.
 - Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`.
+- **Scheduler Process:** A cron-driven sweep service running in Go that publishes renewal events to RabbitMQ.
 
 ### Frontend (Next.js App Router)
 The frontend has been entirely migrated from raw `useEffect` fetches to a robust `@tanstack/react-query` architecture.
@@ -54,7 +55,6 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 ## 4. Remaining Work (If Any)
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
 - **Worker Implementations:** The backend still needs robust retry logic in the RabbitMQ consumers.
-- **Scheduler:** The cron job that polls for due subscriptions and triggers billing events needs to be finalized.
 
 ## 5. How to Continue Development Safely
 1. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.
