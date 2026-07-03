@@ -65,7 +65,7 @@ export default function PlansPage() {
       if (!editingPlan?.id) return;
       const { data, error } = await api.PATCH("/plans/{id}", {
         params: { path: { id: editingPlan.id } },
-        body: { name: editName },
+        body: { name: editName } as any,
       });
       if (error) throw error;
       return data;

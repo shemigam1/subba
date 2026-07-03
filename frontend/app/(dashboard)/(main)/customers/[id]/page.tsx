@@ -125,7 +125,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
   function openEditDrawer() {
     setEditName(customer?.name || "");
     setEditEmail(customer?.email || "");
-    setEditPhone(customer?.phone || "");
+    setEditPhone((customer as any)?.phone || "");
     setIsEditDrawerOpen(true);
   }
 
@@ -154,7 +154,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.name || customer.email}</h1>
               <p className="text-sm text-slate-500">{customer.email}</p>
-              {customer.phone && <p className="text-sm text-slate-500">{customer.phone}</p>}
+              {(customer as any).phone && <p className="text-sm text-slate-500">{(customer as any).phone}</p>}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">

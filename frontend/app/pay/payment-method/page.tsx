@@ -53,7 +53,8 @@ function PaymentMethod() {
     )
   }
 
-  const card = pm.data
+  const pmData = pm.data
+  const cardInfo = pmData?.card
   const vaData = va.data
 
   return (
@@ -110,19 +111,19 @@ function PaymentMethod() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {card?.last4 ? (
+          {cardInfo?.last4 ? (
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div>
                 <p className="font-medium capitalize">
-                  {card.brand} •••• {card.last4}
+                  {cardInfo.brand} •••• {cardInfo.last4}
                 </p>
-                {card.exp_month != null && card.exp_year != null && card.exp_month > 0 && (
+                {cardInfo.exp_month != null && cardInfo.exp_year != null && cardInfo.exp_month > 0 && (
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    Expires {String(card.exp_month).padStart(2, '0')}/{card.exp_year}
+                    Expires {String(cardInfo.exp_month).padStart(2, '0')}/{cardInfo.exp_year}
                   </p>
                 )}
               </div>
-              {card.expired && (
+              {cardInfo.expired && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                   Expired
@@ -134,7 +135,7 @@ function PaymentMethod() {
           )}
           
           <Button variant="outline" className="h-11 w-full" onClick={() => setIsAddCardOpen(true)}>
-            {card?.last4 ? 'Update card' : 'Add a card'}
+            {cardInfo?.last4 ? 'Update card' : 'Add a card'}
           </Button>
         </CardContent>
       </Card>

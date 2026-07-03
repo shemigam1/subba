@@ -18,7 +18,8 @@ interface APIKey {
 export default function APIKeysPage() {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
-  const [newKeyData, setNewKeyData] = useState<{key: string} | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [newKeyData, setNewKeyData] = useState<any>(null);
 
   const { data: keys = [], isLoading } = useQuery({
     queryKey: ["api-keys"],
@@ -92,7 +93,7 @@ export default function APIKeysPage() {
             <h4 className="font-semibold">Key Generated Successfully!</h4>
             <p className="text-sm">Please copy this key immediately. You will not be able to see it again.</p>
             <div className="bg-white p-3 rounded border font-mono text-sm break-all">
-              {newKeyData.key}
+              {newKeyData.secret || newKeyData.key}
             </div>
             <Button variant="outline" size="sm" onClick={() => setNewKeyData(null)}>
               I have copied the key
@@ -127,7 +128,7 @@ export default function APIKeysPage() {
                 {keys.map((k) => (
                   <tr key={k.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900">{k.name}</td>
-                    <td className="px-6 py-4 font-mono text-xs">{k.key_hint}</td>
+                    <td className="px-6 py-4 font-mono text-xs">{(k as any).key_hint || (k as any).masked}</td>
                     <td className="px-6 py-4">{formatDate(k.created_at || "")}</td>
                     <td className="px-6 py-4 text-right">
                       <Button 
