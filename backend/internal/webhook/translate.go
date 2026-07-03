@@ -14,21 +14,40 @@ import (
 // Nomba changes their webhook format, only translate.go needs to change.
 type Event struct {
 	TenantID   string
-	Kind       string // internal event kind, e.g. "payment.success"
-	Amount     float64
-	Reference  string // merchantTxRef, falls back to transactionId
+	Kind       string  // internal routing key, e.g. "payment.succeeded"
+	Amount     float64 // raw float from Nomba (in naira); ToBrokerEvent converts to kobo
+	Reference  string  // merchantTxRef falls back to transactionId
 	NombaTxID  string
 	NombaReqID string
 	OccurredAt time.Time
 }
 
 // routingKey maps a raw Nomba event type to the exchange routing key used by
-// broker.DeclareTopology.
+// broker.DeclareTopology. The mapping is intentionally explicit — adding new
+// Nomba event types should be a conscious decision that also updates topology.go.
 func routingKey(rawEventType string) (string, error) {
 	switch rawEventType {
-	case nomba.RawEventPaymentSuccess, nomba.RawEventPaymentFailed, nomba.RawEventPaymentReversal,
-		nomba.RawEventPayoutSuccess, nomba.RawEventPayoutFailed, nomba.RawEventPayoutRefund:
+	// ── Inbound bank-transfer credit (the "cardless renewal" moat) ─────────
+	// These all arrive via the virtual-account webhook and represent money
+	// landing in the customer's Nomba wallet. They trigger invoice creation
+	// and, once confirmed, subscription advancement.
+	case nomba.RawEventPaymentSuccess, nomba.RawEventPaymentFailed,
+		nomba.RawEventPaymentReversal:
 		return broker.RoutingKeyPaymentSucceeded, nil
+
+	// ── Nomba-initiated payout events (tenant revenue split) ───────────────
+	case nomba.RawEventPayoutSuccess, nomba.RawEventPayoutFailed,
+		nomba.RawEventPayoutRefund:
+		return broker.RoutingKeyPaymentSucceeded, nil
+
+	// ── Scheduled subscription renewal (emitted by the scheduler, not Nomba) ─
+	// The scheduler publishes directly to the exchange under this key; the
+	// webhook path will never emit it, but routingKey is also called when
+	// building subscription.renew events internally so we handle it here for
+	// completeness.
+	case broker.RoutingKeySubscriptionRenew:
+		return broker.RoutingKeySubscriptionRenew, nil
+
 	default:
 		return "", fmt.Errorf("unrecognized event type: %s", rawEventType)
 	}
@@ -65,15 +84,45 @@ func translate(raw RawPayload, tenantID string) (Event, string, error) {
 }
 
 // ToBrokerEvent converts a webhook.Event to a broker.Event for publishing.
+// customerID and subscriptionID have already been resolved by the webhook handler.
 func ToBrokerEvent(we Event, customerID, subscriptionID string) broker.Event {
 	return broker.Event{
 		RequestID:      we.NombaReqID,
 		TenantID:       we.TenantID,
-		EventType:      we.Kind,
-		Amount:         int64(we.Amount * 100), // float kobo → int kobo
+		EventType:      routingKeyOrKind(we.Kind),
+		Amount:         int64(we.Amount * 100), // naira float → kobo int
 		Currency:       "NGN",
 		CustomerID:     customerID,
 		SubscriptionID: subscriptionID,
 		NombaReference: we.NombaTxID,
 	}
+}
+
+// ToRenewalBrokerEvent builds a broker.Event for the subscription.renew routing
+// path. This is called by the scheduler (not the webhook handler) when it finds a
+// subscription whose period has elapsed and needs to be recharged. The references
+// payload carries the plan ID so downstream handlers know which amount to charge.
+func ToRenewalBrokerEvent(tenantID, customerID, subscriptionID, planID, requestID string) broker.Event {
+	return broker.Event{
+		RequestID:      requestID,
+		TenantID:       tenantID,
+		EventType:      broker.RoutingKeySubscriptionRenew,
+		Amount:         0, // not yet known — the invoicing handler will resolve it from the plan
+		Currency:       "NGN",
+		CustomerID:     customerID,
+		SubscriptionID: subscriptionID,
+		NombaReference: "", // absent on subscription.renew; handlers must not assume it is present
+		PlanID:         planID,
+	}
+}
+
+// routingKeyOrKind returns the broker routing key for a given raw Nomba event
+// type, falling back to the kind string if the mapping is unknown. This keeps
+// EventType on the broker envelope aligned with the routing keys in topology.go.
+func routingKeyOrKind(rawKind string) string {
+	rk, err := routingKey(rawKind)
+	if err != nil {
+		return rawKind
+	}
+	return rk
 }

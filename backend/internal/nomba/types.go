@@ -54,6 +54,7 @@ type ChargeResponse struct {
 // }
 
 type BankTransferRequest struct {
+	AccountID     string `json:"accountId"`
 	Amount        int64  `json:"amount"`
 	BankCode      string `json:"bankCode"`
 	AccountNumber string `json:"accountNumber"`

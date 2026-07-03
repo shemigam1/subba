@@ -15,6 +15,7 @@ type Client struct {
 	baseURL      string
 	clientID     string
 	clientSecret string
+	accountID    string
 	sf           singleflight.Group // dedupes concurrent token refreshes
 }
 
@@ -23,6 +24,7 @@ type Config struct {
 	BaseURL      string
 	ClientID     string
 	ClientSecret string
+	AccountID    string
 	Redis        *redis.Client
 }
 
@@ -34,5 +36,6 @@ func NewClient(cfg Config) *Client {
 		baseURL:      cfg.BaseURL,
 		clientID:     cfg.ClientID,
 		clientSecret: cfg.ClientSecret,
+		accountID:    cfg.AccountID,
 	}
 }

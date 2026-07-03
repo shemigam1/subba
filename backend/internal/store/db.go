@@ -50,3 +50,22 @@ func WithTenant(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn fun
 	}
 	return nil
 }
+
+// WithWorker runs fn inside a plain transaction without any tenant RLS scope. Use
+// this for worker/idempotency operations that run as the admin pool role or that
+// manage cross-tenant state (e.g. processed_events, which is not RLS-gated).
+func WithWorker(ctx context.Context, pool *pgxpool.Pool, fn func(pgx.Tx) error) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // no-op after a successful commit
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}

@@ -27,6 +27,12 @@ func Connect(url string) (*Conn, error) {
 	return &Conn{conn: conn, Ch: ch}, nil
 }
 
+// NewChannel opens an additional AMQP channel on the same connection. Use this
+// when consumers need isolated QoS settings (one channel per consumer queue).
+func (c *Conn) NewChannel() (*amqp.Channel, error) {
+	return c.conn.Channel()
+}
+
 // Close shuts down the channel and connection cleanly.
 func (c *Conn) Close() error {
 	if err := c.Ch.Close(); err != nil {

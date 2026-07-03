@@ -43,6 +43,10 @@ sqlc: ## Generate typed query code from SQL
 run: ## Run the API server
 	go run ./cmd/api
 
+.PHONY: run-worker
+run-worker: ## Run the async worker (RabbitMQ consumers + idempotency)
+	go run ./cmd/worker
+
 .PHONY: tidy
 tidy: ## Sync go.mod/go.sum
 	go mod tidy
@@ -51,6 +55,13 @@ tidy: ## Sync go.mod/go.sum
 build: ## Compile all binaries
 	go build ./...
 
+.PHONY: build-api
+build-api: ## Compile only the API binary
+	go build -o bin/api ./cmd/api
+
+.PHONY: build-worker
+build-worker: ## Compile only the worker binary
+	go build -o bin/worker ./cmd/worker
 .PHONY: test
 test: ## Run all tests (integration tests skip when infra is down)
 	go test ./...

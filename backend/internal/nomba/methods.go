@@ -1,32 +1,166 @@
 package nomba
 
-import "context"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
 
-// Charge, Transfer, and CreateVirtualAccount are stubbed for now — signatures
-// only, matching the real Nomba request/response shapes from types.go. Every
-// method calls getToken() first so callers never manage auth themselves.
-// Real Nomba API calls land in Phase 2.
+// Charge, Transfer, and CreateVirtualAccount implement the real Nomba API calls.
+// Every method calls getToken() first so callers never manage auth themselves.
 
+// Charge bills a saved tokenized card. merchantTxRef is used by Nomba as the
+// idempotency key — send the same ref to safely retry without double-charging.
 func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*ChargeResponse, error) {
-	if _, err := c.getToken(ctx); err != nil {
-		return nil, err
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba charge: get token: %w", err)
 	}
-	// TODO: real Nomba tokenized card charge call
-	return &ChargeResponse{}, nil
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba charge: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/v1/tokenized-card/charge", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba charge: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba charge: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("nomba charge: status %d", resp.StatusCode)
+	}
+
+	var out ChargeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba charge: decode response: %w", err)
+	}
+	return &out, nil
 }
 
+// Transfer initiates a bank transfer from the merchant's Nomba balance.
+// merchantTxRef serves as Nomba's idempotency key — use event.RequestID
+// (prefixed to stay unique across payout types) so retries are safe.
 func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*TransferResponse, error) {
-	if _, err := c.getToken(ctx); err != nil {
-		return nil, err
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba transfer: get token: %w", err)
 	}
-	// TODO: real Nomba bank transfer call
-	return &TransferResponse{}, nil
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/v1/transfers/bank", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba transfer: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba transfer: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("nomba transfer: status %d", resp.StatusCode)
+	}
+
+	var out TransferResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba transfer: decode response: %w", err)
+	}
+	return &out, nil
 }
 
-func (c *Client) CreateVirtualAccount(ctx context.Context, req CreateVirtualAccountRequest) (*VirtualAccountResponse, error) {
-	if _, err := c.getToken(ctx); err != nil {
-		return nil, err
+// GetTransferStatus polls for the outcome of a previously initiated transfer.
+// Use this when Transfer returns a non-final status so the payout handler can
+// decide whether to retry or mark the record as failed.
+func (c *Client) GetTransferStatus(ctx context.Context, merchantTxRef string) (*TransferResponse, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba get transfer status: get token: %w", err)
 	}
-	// TODO: real Nomba createVirtualAccount call
-	return &VirtualAccountResponse{}, nil
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		c.baseURL+"/v1/transfers/"+merchantTxRef, nil)
+	if err != nil {
+		return nil, fmt.Errorf("nomba get transfer status: build request: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba get transfer status: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("nomba get transfer status: ref %q not found", merchantTxRef)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("nomba get transfer status: status %d", resp.StatusCode)
+	}
+
+	var out TransferResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba get transfer status: decode response: %w", err)
+	}
+	return &out, nil
+}
+
+// CreateVirtualAccount provisions a virtual bank account scoped to a customer.
+func (c *Client) CreateVirtualAccount(ctx context.Context, req CreateVirtualAccountRequest) (*VirtualAccountResponse, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba create virtual account: get token: %w", err)
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/v1/accounts/virtual", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba create virtual account: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba create virtual account: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("nomba create virtual account: status %d", resp.StatusCode)
+	}
+
+	var out VirtualAccountResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba create virtual account: decode response: %w", err)
+	}
+	return &out, nil
 }
