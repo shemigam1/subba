@@ -6,9 +6,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import type { components } from "@/lib/api/v1";
-
-type Settings = components["schemas"]["Settings"];
+interface Settings {
+  business_name?: string;
+  support_email?: string;
+  webhook_url?: string;
+}
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();

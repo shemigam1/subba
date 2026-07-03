@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import type { components } from "@/lib/api/v1";
-
-type APIKey = components["schemas"]["APIKey"];
+interface APIKey {
+  id?: string;
+  name?: string;
+  key_hint?: string;
+  created_at?: string;
+  key?: string;
+}
 
 export default function APIKeysPage() {
   const queryClient = useQueryClient();

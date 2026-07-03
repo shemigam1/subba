@@ -148,7 +148,7 @@ export function useVirtualAccount() {
   return useQuery({
     queryKey: ['portal', 'virtual-account'],
     queryFn: async () => {
-      const { data, error, response } = await api.GET('/portal/virtual-account')
+      const { data, error, response } = await (api as any).GET('/portal/virtual-account')
       ensureOk(response as Response, error)
       return data
     },
@@ -159,7 +159,7 @@ export function useSaveCard() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (vars: { tokenized_card: string }) => {
-      const { data, error, response } = await api.POST('/portal/payment-method/card', {
+      const { data, error, response } = await (api as any).POST('/portal/payment-method/card', {
         body: { tokenized_card: vars.tokenized_card },
       })
       ensureOk(response as Response, error)

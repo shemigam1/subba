@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, Check, Copy, CreditCard, Landmark } from 'lucide-react'
+import { AlertTriangle, Check, Copy, CreditCard, Landmark, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PortalShell } from '@/components/portal/portal-shell'
 import { naira } from '@/lib/format'
-import { usePaymentMethod, type ApiError } from '@/lib/portal/hooks'
+import { usePaymentMethod, useVirtualAccount, useSaveCard, type ApiError } from '@/lib/portal/hooks'
 
 export default function PaymentMethodPage() {
   return (
@@ -20,8 +21,13 @@ export default function PaymentMethodPage() {
 
 function PaymentMethod() {
   const pm = usePaymentMethod()
+  const va = useVirtualAccount()
+  const saveCard = useSaveCard()
+  
+  const [isAddCardOpen, setIsAddCardOpen] = useState(false)
+  const [tokenizedCard, setTokenizedCard] = useState('')
 
-  if (pm.isPending) {
+  if (pm.isPending || va.isPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-40 w-full" />
@@ -47,12 +53,11 @@ function PaymentMethod() {
     )
   }
 
-  const card = pm.data?.card
-  const va = pm.data?.virtual_account
+  const card = pm.data
+  const vaData = va.data
 
   return (
     <div className="space-y-4">
-      {/* Cardless bank transfer — the hero path — comes first, per the design brief. */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -65,25 +70,25 @@ function PaymentMethod() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {va?.account_number ? (
+          {vaData?.account_number ? (
             <>
               <div className="rounded-lg border bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                  {va.bank_name ?? 'Bank'}
+                  {vaData.bank_name ?? 'Bank'}
                 </p>
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <p className="text-2xl font-semibold tabular-nums tracking-wide">
-                    {va.account_number}
+                    {vaData.account_number}
                   </p>
-                  <CopyButton value={va.account_number} label="Copy account number" />
+                  <CopyButton value={vaData.account_number} label="Copy account number" />
                 </div>
-                {va.account_name && (
-                  <p className="mt-1 text-sm text-muted-foreground">{va.account_name}</p>
+                {vaData.account_name && (
+                  <p className="mt-1 text-sm text-muted-foreground">{vaData.account_name}</p>
                 )}
               </div>
-              {va.amount_due != null && (va.amount_due.amount_minor ?? 0) > 0 && (
+              {vaData.amount_due != null && (vaData.amount_due.amount_minor ?? 0) > 0 && (
                 <p className="text-sm">
-                  Transfer <span className="font-semibold tabular-nums">{naira(va.amount_due.amount_minor ?? 0)}</span>{' '}
+                  Transfer <span className="font-semibold tabular-nums">{naira(vaData.amount_due.amount_minor ?? 0)}</span>{' '}
                   to this account to renew.
                 </p>
               )}
@@ -105,7 +110,7 @@ function PaymentMethod() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {card ? (
+          {card?.last4 ? (
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div>
                 <p className="font-medium capitalize">
@@ -127,12 +132,50 @@ function PaymentMethod() {
           ) : (
             <p className="text-sm text-muted-foreground">No card on file.</p>
           )}
-          {/* Nomba's hosted tokenization widget mounts here once Track A's client lands. */}
-          <Button variant="outline" className="h-11 w-full" disabled title="Card updates are coming soon">
-            {card ? 'Update card' : 'Add a card'} (coming soon)
+          
+          <Button variant="outline" className="h-11 w-full" onClick={() => setIsAddCardOpen(true)}>
+            {card?.last4 ? 'Update card' : 'Add a card'}
           </Button>
         </CardContent>
       </Card>
+
+      {isAddCardOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">Link a Card</h2>
+              <p className="text-sm text-slate-500 mt-1">Enter your tokenized card string from Nomba Checkout.</p>
+            </div>
+            <div className="p-6">
+              <form 
+                id="save-card-form" 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveCard.mutate({ tokenized_card: tokenizedCard }, {
+                    onSuccess: () => {
+                      setIsAddCardOpen(false);
+                      setTokenizedCard('');
+                    }
+                  });
+                }}
+              >
+                <Input 
+                  required
+                  placeholder="nomba_tok_xyz123..."
+                  value={tokenizedCard}
+                  onChange={(e) => setTokenizedCard(e.target.value)}
+                />
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setIsAddCardOpen(false)}>Cancel</Button>
+              <Button type="submit" form="save-card-form" disabled={saveCard.isPending || !tokenizedCard}>
+                {saveCard.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Save Card"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

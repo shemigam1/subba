@@ -2,18 +2,32 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, User, CreditCard, Link as LinkIcon, Loader2 } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { ArrowLeft, User, CreditCard, Link as LinkIcon, Loader2, Plus, X, Trash2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { naira, formatDate } from "@/lib/format";
 import type { components } from "@/lib/api/v1";
 
 type Customer = components["schemas"]["Customer"];
 type Subscription = components["schemas"]["Subscription"];
+type Plan = components["schemas"]["Plan"];
+
+interface Invoice {
+  id: string;
+  amount_minor: number;
+  status: string;
+  created_at: string;
+  invoice_url?: string;
+}
 
 export default function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
+  const queryClient = useQueryClient();
   const [portalLink, setPortalLink] = useState("");
+  const [isSubDrawerOpen, setIsSubDrawerOpen] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
 
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ["customers", customerId],
@@ -22,7 +36,26 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
         params: { path: { id: customerId } }
       });
       if (error) throw error;
-      return data as Customer;
+      return data as Customer & { subscription?: Subscription };
+    },
+  });
+
+  const { data: invoices = [], isLoading: loadingInvoices } = useQuery({
+    queryKey: ["customers", customerId, "invoices"],
+    queryFn: async () => {
+      // Note: We use a type assertion for the path to bypass TS limits if v1.d.ts is stale
+      const { data, error } = await (api as any).GET(`/customers/${customerId}/invoices`);
+      if (error) throw error;
+      return data as Invoice[];
+    },
+  });
+
+  const { data: plans = [] } = useQuery({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/plans");
+      if (error) throw error;
+      return data as Plan[];
     },
   });
 
@@ -39,9 +72,38 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
     }
   });
 
+  const createSubscription = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await (api as any).POST("/subscriptions", {
+        body: { customer_id: customerId, plan_id: selectedPlanId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", customerId] });
+      setIsSubDrawerOpen(false);
+    }
+  });
+
+  const cancelSubscription = useMutation({
+    mutationFn: async (subId: string) => {
+      const { data, error } = await (api as any).POST(`/subscriptions/${subId}/cancel`, {
+        body: { at_period_end: false }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers", customerId] });
+    }
+  });
+
   if (loadingCustomer || !customer) {
     return <div className="p-8 text-center text-slate-500 animate-pulse">Loading customer details...</div>;
   }
+
+  const activeSub = customer.subscription; // Assuming backend embeds it, or we infer from properties
 
   return (
     <div className="space-y-6">
@@ -83,12 +145,38 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
             <h3 className="font-semibold text-slate-900">Active Subscription</h3>
           </div>
           <div className="p-6 flex-1 flex flex-col items-center justify-center text-center">
-            {/* Minimal placeholder for subscription details, since we haven't mocked a complex subscription endpoint yet */}
-            <div className="w-12 h-12 bg-success-600/10 rounded-full flex items-center justify-center mb-3">
-              <div className="w-3 h-3 bg-success-600 rounded-full"></div>
-            </div>
-            <h4 className="font-bold text-slate-900">Pro Plan</h4>
-            <p className="text-sm text-slate-500 mt-1">Status: Active</p>
+            {activeSub && activeSub.status !== "canceled" ? (
+              <>
+                <div className="w-12 h-12 bg-success-600/10 rounded-full flex items-center justify-center mb-3">
+                  <div className="w-3 h-3 bg-success-600 rounded-full"></div>
+                </div>
+                <h4 className="font-bold text-slate-900">Subscription Active</h4>
+                <p className="text-sm text-slate-500 mt-1 capitalize">Status: {activeSub.status}</p>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="mt-4 text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                  onClick={() => {
+                    if (confirm("Are you sure you want to cancel this subscription immediately?")) {
+                      cancelSubscription.mutate(activeSub.id || "");
+                    }
+                  }}
+                  disabled={cancelSubscription.isPending}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Cancel Subscription
+                </Button>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3">
+                  <div className="w-3 h-3 bg-slate-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-slate-500 mb-4">No active subscription.</p>
+                <Button variant="outline" size="sm" onClick={() => setIsSubDrawerOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Subscription
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -98,7 +186,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
           </div>
           <div className="p-6 flex-1 flex items-center justify-center">
             {customer.has_card_on_file ? (
-              <div className="flex items-center gap-3 border p-4 rounded-lg w-full max-w-sm">
+              <div className="flex items-center gap-3 border p-4 rounded-lg w-full max-w-sm bg-slate-50">
                 <CreditCard className="w-6 h-6 text-slate-400" />
                 <div>
                   <p className="font-medium text-slate-900">Card on File</p>
@@ -106,11 +194,92 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-slate-500 text-center">No card on file. Using Bank Transfer.</p>
+              <p className="text-sm text-slate-500 text-center">No card on file. The customer must use the Portal to set up a card or pay via bank transfer.</p>
             )}
           </div>
         </div>
       </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100">
+          <h3 className="font-semibold text-slate-900">Invoices</h3>
+        </div>
+        {loadingInvoices ? (
+          <div className="p-8 text-center text-slate-500 animate-pulse">Loading invoices...</div>
+        ) : invoices.length === 0 ? (
+          <div className="p-12 text-center text-slate-500">
+            <p className="text-sm">No invoices found for this customer.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium">
+                <tr>
+                  <th className="px-6 py-4">Amount</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {invoices.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-900 tabular-nums">{naira(inv.amount_minor || 0)}</td>
+                    <td className="px-6 py-4 capitalize">{inv.status}</td>
+                    <td className="px-6 py-4">{formatDate(inv.created_at)}</td>
+                    <td className="px-6 py-4 text-right">
+                      {inv.invoice_url ? (
+                        <a href={inv.invoice_url} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">
+                          View
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {isSubDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm transition-opacity">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">Create Subscription</h2>
+              <button onClick={() => setIsSubDrawerOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 flex-1 overflow-y-auto">
+              <form id="create-sub-form" onSubmit={(e) => { e.preventDefault(); createSubscription.mutate(); }} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-900">Select Plan</label>
+                  <select 
+                    required
+                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600"
+                    value={selectedPlanId}
+                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                  >
+                    <option value="" disabled>Select a plan...</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} ({naira(p.amount_minor || 0)} / {p.interval})</option>
+                    ))}
+                  </select>
+                </div>
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setIsSubDrawerOpen(false)}>Cancel</Button>
+              <Button type="submit" form="create-sub-form" disabled={createSubscription.isPending || !selectedPlanId}>
+                {createSubscription.isPending ? "Creating..." : "Create Subscription"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
