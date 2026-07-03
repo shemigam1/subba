@@ -61,3 +61,18 @@ WHERE subscription_id = sqlc.arg('subscription_id')
   AND status = 'open'
 ORDER BY issued_at DESC
 LIMIT 1;
+
+-- name: MarkInvoiceUnpaid :one
+-- Reverts a paid invoice back to 'open' when a payment reversal occurs.
+UPDATE invoices
+SET status = 'open'
+WHERE id = sqlc.arg('id')
+  AND status = 'paid'
+RETURNING *;
+
+-- name: GetPaidInvoiceByNombaReference :one
+-- Finds a paid invoice by its Nomba transaction reference.
+SELECT * FROM invoices
+WHERE nomba_reference = sqlc.arg('nomba_reference')
+  AND status = 'paid'
+LIMIT 1;

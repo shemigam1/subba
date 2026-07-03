@@ -5,6 +5,8 @@ const (
     DlxExchangeName = "subba.dlx"
 
     RoutingKeyPaymentSucceeded  = "payment.succeeded"
+    RoutingKeyPaymentFailed     = "payment.failed"
+    RoutingKeyPaymentReversal   = "payment.reversal"
     RoutingKeySubscriptionRenew = "subscription.renew"
 
     QueueInvoicing         = "subba.invoicing"

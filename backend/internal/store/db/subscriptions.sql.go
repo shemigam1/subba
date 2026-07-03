@@ -9,7 +9,47 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const advanceSubscriptionPeriod = `-- name: AdvanceSubscriptionPeriod :one
+UPDATE subscriptions
+SET status               = 'active',
+    current_period_start = $1,
+    current_period_end   = $2,
+    cancel_at_period_end = false
+WHERE id = $3
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, cancel_at_period_end, canceled_at, created_at, updated_at
+`
+
+type AdvanceSubscriptionPeriodParams struct {
+	NewPeriodStart pgtype.Timestamptz `json:"new_period_start"`
+	NewPeriodEnd   pgtype.Timestamptz `json:"new_period_end"`
+	ID             uuid.UUID          `json:"id"`
+}
+
+// Stamps the billing period forward by one interval (month or year) and
+// transitions status to 'active'. Called by the subscription_state handler
+// when a payment.succeeded event confirms a funded renewal.
+// new_period_start and new_period_end are computed in Go from the plan interval.
+func (q *Queries) AdvanceSubscriptionPeriod(ctx context.Context, arg AdvanceSubscriptionPeriodParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, advanceSubscriptionPeriod, arg.NewPeriodStart, arg.NewPeriodEnd, arg.ID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAtPeriodEnd,
+		&i.CanceledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const cancelSubscription = `-- name: CancelSubscription :one
 UPDATE subscriptions SET
@@ -107,6 +147,82 @@ LIMIT 1
 
 func (q *Queries) GetSubscriptionByCustomer(ctx context.Context, customerID uuid.UUID) (Subscription, error) {
 	row := q.db.QueryRow(ctx, getSubscriptionByCustomer, customerID)
+	var i Subscription
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.CustomerID,
+		&i.PlanID,
+		&i.Status,
+		&i.CurrentPeriodStart,
+		&i.CurrentPeriodEnd,
+		&i.CancelAtPeriodEnd,
+		&i.CanceledAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listDueSubscriptions = `-- name: ListDueSubscriptions :many
+SELECT id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, cancel_at_period_end, canceled_at, created_at, updated_at FROM subscriptions
+WHERE status = 'active'
+  AND cancel_at_period_end = false
+  AND current_period_end IS NOT NULL
+  AND current_period_end <= now()
+`
+
+// Returns all active subscriptions whose current billing period has elapsed.
+// The scheduler sweeps these on each tick and publishes a subscription.renew
+// event for each one so the subscription_state handler can charge the card.
+func (q *Queries) ListDueSubscriptions(ctx context.Context) ([]Subscription, error) {
+	rows, err := q.db.Query(ctx, listDueSubscriptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Subscription
+	for rows.Next() {
+		var i Subscription
+		if err := rows.Scan(
+			&i.ID,
+			&i.TenantID,
+			&i.CustomerID,
+			&i.PlanID,
+			&i.Status,
+			&i.CurrentPeriodStart,
+			&i.CurrentPeriodEnd,
+			&i.CancelAtPeriodEnd,
+			&i.CanceledAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setSubscriptionStatus = `-- name: SetSubscriptionStatus :one
+UPDATE subscriptions
+SET status = $1
+WHERE id   = $2
+RETURNING id, tenant_id, customer_id, plan_id, status, current_period_start, current_period_end, cancel_at_period_end, canceled_at, created_at, updated_at
+`
+
+type SetSubscriptionStatusParams struct {
+	Status string    `json:"status"`
+	ID     uuid.UUID `json:"id"`
+}
+
+// General-purpose status writer used by the subscription_state handler for
+// past_due and unpaid transitions when a payment fails.
+func (q *Queries) SetSubscriptionStatus(ctx context.Context, arg SetSubscriptionStatusParams) (Subscription, error) {
+	row := q.db.QueryRow(ctx, setSubscriptionStatus, arg.Status, arg.ID)
 	var i Subscription
 	err := row.Scan(
 		&i.ID,

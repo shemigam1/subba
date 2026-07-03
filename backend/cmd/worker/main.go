@@ -117,7 +117,7 @@ func main() {
 			prefetch: 5,
 			poolSize: 3,
 			retryQ:   broker.QueuePayoutsRetry,
-			handler:  payouts.NewHandler(nombaClient, log),
+			handler:  payouts.NewHandler(log),
 		},
 		{
 			queue:    broker.QueueSubscriptionState,

@@ -35,6 +35,10 @@ func NewHandler(log zerolog.Logger) idempotency.HandlerFunc {
 		switch event.EventType {
 		case broker.RoutingKeyPaymentSucceeded:
 			return handlePaymentSucceeded(ctx, q, event, log)
+		case broker.RoutingKeyPaymentReversal:
+			return handlePaymentReversal(ctx, q, event, log)
+		case broker.RoutingKeyPaymentFailed:
+			return handlePaymentFailed(ctx, q, event, log)
 		case broker.RoutingKeySubscriptionRenew:
 			return handleSubscriptionRenew(ctx, q, event, log)
 		default:
@@ -84,14 +88,15 @@ func handlePaymentSucceeded(ctx context.Context, q *db.Queries, event broker.Eve
 			Msg("invoicing: no open invoice found for payment.succeeded — creating inline")
 
 		now := time.Now().UTC()
+		nowTS := pgtype.Timestamptz{Time: now, Valid: true}
 		inv, err = q.CreateInvoice(ctx, db.CreateInvoiceParams{
 			TenantID:       tenantID,
 			SubscriptionID: pgtype.UUID{Bytes: subID, Valid: true},
 			CustomerID:     customerID,
 			Amount:         event.Amount,
 			Currency:       event.Currency,
-			PeriodStart:    now,
-			PeriodEnd:      now, // unknown period; sub-state handler will set it
+			PeriodStart:    nowTS,
+			PeriodEnd:      nowTS, // unknown period; sub-state handler will set it
 			NombaReference: nombaRef,
 		})
 		if err != nil {
@@ -105,8 +110,8 @@ func handlePaymentSucceeded(ctx context.Context, q *db.Queries, event broker.Eve
 			Description: "Payment received",
 			Amount:      event.Amount,
 			Quantity:    1,
-			PeriodStart: now,
-			PeriodEnd:   now,
+			PeriodStart: nowTS,
+			PeriodEnd:   nowTS,
 		})
 		if err != nil {
 			return fmt.Errorf("invoicing: create inline invoice item: %w", err)
@@ -135,6 +140,58 @@ func handlePaymentSucceeded(ctx context.Context, q *db.Queries, event broker.Eve
 		Str("nomba_reference", event.NombaReference).
 		Int64("amount_kobo", paid.Amount).
 		Msg("invoicing: invoice marked paid")
+	return nil
+}
+
+// ── payment.reversal ────────────────────────────────────────────────────────
+
+func handlePaymentReversal(ctx context.Context, q *db.Queries, event broker.Event, log zerolog.Logger) error {
+	subID, err := uuid.Parse(event.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("invoicing: parse subscription_id for reversal: %w", err)
+	}
+
+	if event.NombaReference == "" {
+		log.Warn().
+			Str("subscription_id", subID.String()).
+			Msg("invoicing: payment reversed but no nomba_reference provided")
+		return nil
+	}
+
+	// Try to find the paid invoice by its nomba reference.
+	nombaRef := event.NombaReference
+	inv, err := q.GetPaidInvoiceByNombaReference(ctx, &nombaRef)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			log.Warn().
+				Str("subscription_id", subID.String()).
+				Str("nomba_reference", event.NombaReference).
+				Msg("invoicing: payment reversed but no matching paid invoice found")
+			return nil
+		}
+		return fmt.Errorf("invoicing: get paid invoice by nomba reference: %w", err)
+	}
+
+	// Revert the invoice back to 'open'
+	_, err = q.MarkInvoiceUnpaid(ctx, inv.ID)
+	if err != nil {
+		return fmt.Errorf("invoicing: mark invoice unpaid: %w", err)
+	}
+
+	log.Info().
+		Str("invoice_id", inv.ID.String()).
+		Str("subscription_id", subID.String()).
+		Str("nomba_reference", event.NombaReference).
+		Msg("invoicing: payment reversed — invoice unmarked")
+	return nil
+}
+
+// ── payment.failed ──────────────────────────────────────────────────────────
+
+func handlePaymentFailed(ctx context.Context, q *db.Queries, event broker.Event, log zerolog.Logger) error {
+	log.Info().
+		Str("subscription_id", event.SubscriptionID).
+		Msg("invoicing: payment failed, invoice remains open")
 	return nil
 }
 
@@ -231,8 +288,8 @@ func handleSubscriptionRenew(ctx context.Context, q *db.Queries, event broker.Ev
 		CustomerID:     customerID,
 		Amount:         billedAmount,
 		Currency:       plan.Currency,
-		PeriodStart:    periodStart,
-		PeriodEnd:      periodEnd,
+		PeriodStart:    pgtype.Timestamptz{Time: periodStart, Valid: true},
+		PeriodEnd:      pgtype.Timestamptz{Time: periodEnd, Valid: true},
 		NombaReference: nil, // not yet collected; paid after tokenized-card charge succeeds
 	})
 	if err != nil {
@@ -252,8 +309,8 @@ func handleSubscriptionRenew(ctx context.Context, q *db.Queries, event broker.Ev
 		Description: description,
 		Amount:      billedAmount,
 		Quantity:    1,
-		PeriodStart: periodStart,
-		PeriodEnd:   periodEnd,
+		PeriodStart: pgtype.Timestamptz{Time: periodStart, Valid: true},
+		PeriodEnd:   pgtype.Timestamptz{Time: periodEnd, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("invoicing renew: create invoice item: %w", err)

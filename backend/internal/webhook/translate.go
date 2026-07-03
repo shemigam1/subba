@@ -31,9 +31,14 @@ func routingKey(rawEventType string) (string, error) {
 	// These all arrive via the virtual-account webhook and represent money
 	// landing in the customer's Nomba wallet. They trigger invoice creation
 	// and, once confirmed, subscription advancement.
-	case nomba.RawEventPaymentSuccess, nomba.RawEventPaymentFailed,
-		nomba.RawEventPaymentReversal:
+	case nomba.RawEventPaymentSuccess:
 		return broker.RoutingKeyPaymentSucceeded, nil
+
+	case nomba.RawEventPaymentFailed:
+		return broker.RoutingKeyPaymentFailed, nil
+
+	case nomba.RawEventPaymentReversal:
+		return broker.RoutingKeyPaymentReversal, nil
 
 	// ── Nomba-initiated payout events (tenant revenue split) ───────────────
 	case nomba.RawEventPayoutSuccess, nomba.RawEventPayoutFailed,

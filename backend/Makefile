@@ -47,6 +47,10 @@ run: ## Run the API server
 run-worker: ## Run the async worker (RabbitMQ consumers + idempotency)
 	go run ./cmd/worker
 
+.PHONY: run-scheduler
+run-scheduler: ## Run the subscription renewal scheduler (cron sweep)
+	go run ./cmd/scheduler
+
 .PHONY: tidy
 tidy: ## Sync go.mod/go.sum
 	go mod tidy
@@ -62,6 +66,10 @@ build-api: ## Compile only the API binary
 .PHONY: build-worker
 build-worker: ## Compile only the worker binary
 	go build -o bin/worker ./cmd/worker
+
+.PHONY: build-scheduler
+build-scheduler: ## Compile only the scheduler binary
+	go build -o bin/scheduler ./cmd/scheduler
 .PHONY: test
 test: ## Run all tests (integration tests skip when infra is down)
 	go test ./...

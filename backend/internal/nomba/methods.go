@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -25,7 +26,7 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/tokenized-card/charge", bytes.NewReader(body))
+		c.baseURL+"/v1/checkout/tokenized-card-payment", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba charge: build request: %w", err)
 	}
@@ -40,7 +41,8 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("nomba charge: status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba charge: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var out ChargeResponse
@@ -64,8 +66,13 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/transfers/bank", bytes.NewReader(body))
+	// Dynamically build endpoint path using /v2
+	url := c.baseURL + "/v2/transfers/bank"
+	if req.AccountID != "" {
+		url = fmt.Sprintf("%s/v2/transfers/bank/%s", c.baseURL, req.AccountID)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba transfer: build request: %w", err)
 	}
@@ -80,7 +87,8 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("nomba transfer: status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba transfer: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var out TransferResponse
@@ -127,8 +135,11 @@ func (c *Client) GetTransferStatus(ctx context.Context, merchantTxRef string) (*
 	return &out, nil
 }
 
-// CreateVirtualAccount provisions a virtual bank account scoped to a customer.
-func (c *Client) CreateVirtualAccount(ctx context.Context, req CreateVirtualAccountRequest) (*VirtualAccountResponse, error) {
+// CreateVirtualAccount provisions a virtual bank account for a customer, scoped
+// to subAccountID so that Nomba settles received funds directly into that
+// sub-account's balance rather than the parent account.
+// Endpoint: POST /v1/accounts/virtual/{subAccountId}
+func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, req CreateVirtualAccountRequest) (*VirtualAccountResponse, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: get token: %w", err)
@@ -139,8 +150,8 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, req CreateVirtualAcco
 		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/accounts/virtual", bytes.NewReader(body))
+	url := fmt.Sprintf("%s/v1/accounts/virtual/%s", c.baseURL, subAccountID)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: build request: %w", err)
 	}
@@ -155,7 +166,8 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, req CreateVirtualAcco
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("nomba create virtual account: status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba create virtual account: status %d, body: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var out VirtualAccountResponse
