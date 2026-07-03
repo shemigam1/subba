@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Activity, CreditCard, DollarSign, Users, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { naira } from "@/lib/format";
 import type { components } from "@/lib/api/v1";
@@ -9,23 +9,16 @@ import type { components } from "@/lib/api/v1";
 type AnalyticsOverview = components["schemas"]["AnalyticsOverview"];
 
 export default function OverviewPage() {
-  const [data, setData] = useState<AnalyticsOverview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["analytics", "overview"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/analytics/overview");
+      if (error) throw error;
+      return data as AnalyticsOverview;
+    },
+  });
 
-  useEffect(() => {
-    async function loadData() {
-      const { data: analytics, error } = await api.GET("/analytics/overview");
-      if (analytics) {
-        setData(analytics);
-      } else {
-        console.error("Failed to load analytics", error);
-      }
-      setLoading(false);
-    }
-    loadData();
-  }, []);
-
-  if (loading || !data) {
+  if (isLoading) {
     return (
       <div className="space-y-8 animate-pulse">
         <div className="h-8 w-48 bg-slate-200 rounded"></div>
@@ -35,6 +28,15 @@ export default function OverviewPage() {
           <div className="h-32 bg-slate-200 rounded-xl"></div>
           <div className="h-32 bg-slate-200 rounded-xl"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="p-6 rounded-xl border border-red-200 bg-red-50 text-red-700">
+        <h3 className="font-semibold text-red-900">Failed to load analytics</h3>
+        <p className="text-sm mt-1">Please try again later or check your connection.</p>
       </div>
     );
   }
@@ -139,3 +141,4 @@ export default function OverviewPage() {
     </div>
   );
 }
+

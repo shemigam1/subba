@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useState } from "react";
+import { Plus, X, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { naira } from "@/lib/format";
 import type { components } from "@/lib/api/v1";
@@ -11,58 +12,98 @@ import type { components } from "@/lib/api/v1";
 type Plan = components["schemas"]["Plan"];
 
 export default function PlansPage() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form state
+  
+  // Create Form state
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [interval, setInterval] = useState<"month" | "year">("month");
 
-  useEffect(() => {
-    fetchPlans();
-  }, []);
+  // Edit Form state
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [editName, setEditName] = useState("");
 
-  async function fetchPlans() {
-    const { data, error, response } = await api.GET("/plans");
-    if (!response.ok) {
-      console.error(error);
-    } else if (data) {
-      setPlans(data);
-    } else {
-      console.error(error);
-    }
-    setLoading(false);
-  }
+  // Data Fetching
+  const { data: plans = [], isLoading } = useQuery({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/plans");
+      if (error) throw error;
+      return data as Plan[];
+    },
+  });
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setIsSubmitting(true);
-    const amountMinor = Math.round(parseFloat(amount) * 100);
-    
-    const { data, error, response } = await api.POST("/plans", {
-      body: {
-        name,
-        amount_minor: amountMinor,
-        currency: "NGN",
-        interval,
-      }
-    });
-
-    if (!response.ok) {
-      console.error(error);
-    } else if (data) {
-      setPlans([data, ...plans]);
+  // Create Mutation
+  const createPlan = useMutation({
+    mutationFn: async () => {
+      const amountMinor = Math.round(parseFloat(amount) * 100);
+      const { data, error } = await api.POST("/plans", {
+        body: {
+          name,
+          amount_minor: amountMinor,
+          currency: "NGN",
+          interval,
+        },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
       setIsDrawerOpen(false);
       setName("");
       setAmount("");
       setInterval("month");
-    } else {
-      console.error(error);
-    }
-    setIsSubmitting(false);
+    },
+  });
+
+  // Update Mutation
+  const updatePlan = useMutation({
+    mutationFn: async () => {
+      if (!editingPlan?.id) return;
+      const { data, error } = await api.PATCH("/plans/{id}", {
+        params: { path: { id: editingPlan.id } },
+        body: { name: editName } as any,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+      setIsEditDrawerOpen(false);
+      setEditingPlan(null);
+    },
+  });
+
+  // Archive Mutation
+  const archivePlan = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await api.DELETE("/plans/{id}", {
+        params: { path: { id } },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    createPlan.mutate();
+  }
+
+  function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    updatePlan.mutate();
+  }
+
+  function openEditDrawer(plan: Plan) {
+    setEditingPlan(plan);
+    setEditName(plan.name || "");
+    setIsEditDrawerOpen(true);
   }
 
   return (
@@ -80,7 +121,7 @@ export default function PlansPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {loading ? (
+        {isLoading ? (
           <div className="p-8 text-center text-slate-500 animate-pulse">Loading plans...</div>
         ) : plans.length === 0 ? (
           <div className="p-12 text-center text-slate-500 flex flex-col items-center">
@@ -121,9 +162,25 @@ export default function PlansPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm" className="text-brand-600 hover:text-brand-700">
-                        Edit
-                      </Button>
+                      {!plan.deleted_at && (
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => openEditDrawer(plan)} className="text-brand-600 hover:text-brand-700">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to archive ${plan.name}?`)) {
+                                archivePlan.mutate(plan.id || "");
+                              }
+                            }} 
+                            className="text-danger-600 hover:text-danger-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -133,7 +190,7 @@ export default function PlansPage() {
         )}
       </div>
 
-      {/* Drawer Overlay */}
+      {/* Create Drawer Overlay */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm transition-opacity">
           <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
@@ -181,13 +238,61 @@ export default function PlansPage() {
             </div>
             <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
               <Button type="button" variant="ghost" onClick={() => setIsDrawerOpen(false)}>Cancel</Button>
-              <Button type="submit" form="create-plan-form" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Plan"}
+              <Button type="submit" form="create-plan-form" disabled={createPlan.isPending}>
+                {createPlan.isPending ? "Creating..." : "Create Plan"}
               </Button>
             </div>
+            {createPlan.isError && (
+              <div className="p-4 bg-red-50 text-red-700 text-sm">Failed to create plan.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Drawer Overlay */}
+      {isEditDrawerOpen && editingPlan && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/50 backdrop-blur-sm transition-opacity">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900">Edit Plan</h2>
+              <button onClick={() => setIsEditDrawerOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 flex-1 overflow-y-auto">
+              <form id="update-plan-form" onSubmit={handleUpdate} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-900">Plan Name</label>
+                  <Input 
+                    required 
+                    value={editName} 
+                    onChange={(e) => setEditName(e.target.value)} 
+                  />
+                  <p className="text-xs text-slate-500">Only the name can be updated for active plans.</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-400">Amount (₦)</label>
+                  <Input disabled value={editingPlan.amount_minor ? editingPlan.amount_minor / 100 : 0} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-400">Interval</label>
+                  <Input disabled value={editingPlan.interval} className="capitalize" />
+                </div>
+              </form>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setIsEditDrawerOpen(false)}>Cancel</Button>
+              <Button type="submit" form="update-plan-form" disabled={updatePlan.isPending}>
+                {updatePlan.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+            {updatePlan.isError && (
+              <div className="p-4 bg-red-50 text-red-700 text-sm">Failed to update plan.</div>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+
