@@ -25,7 +25,29 @@ The frontend has been entirely migrated from raw `useEffect` fetches to a robust
    - **Decision:** We bypassed Context/Redux in favor of React Query's native cache for the `/me` user profile.
    - **Why:** The session is securely held in an `httpOnly` cookie managed by the Go backend. The frontend simply fetches the session data and caches it.
 
-## 3. Assumptions & Trade-offs
+## 3. UI Map for Testing Backend Features
+
+Backend engineers should use the following frontend locations to test their API changes end-to-end:
+
+### Merchant Dashboard (`http://localhost:3000`)
+- **Login / Signup:** Test `POST /auth/login` and `POST /auth/signup` at `/login` and `/signup`.
+- **Plans (CRUD):** Navigate to **Plans** (`/plans`) to test `GET /plans`, `POST /plans` (New Plan drawer), `PATCH /plans/:id` (Edit pencil icon), and `DELETE /plans/:id` (Trash icon).
+- **Customers (CRUD):** Navigate to **Customers** (`/customers`) to test `GET /customers` and `POST /customers` (Add Customer drawer).
+- **Customer Details:** Click "View" on any customer to go to `/customers/[id]`. Here you can test:
+  - `PATCH /customers/:id` ("Edit Profile" button)
+  - `POST /customers/:id/portal-link` ("Generate Portal Link" button)
+  - `POST /subscriptions` and `POST /subscriptions/:id/cancel` (Subscription Active/Create section)
+  - `GET /customers/:id/invoices` (Invoices table at the bottom)
+- **API Keys:** Navigate to **Developers > API Keys** (`/api-keys`) to test generating (`POST /api-keys`) and revoking (`DELETE /api-keys/:id`).
+- **Settings:** Navigate to **Settings** (`/settings`) to test patching webhook endpoints (`PATCH /settings`).
+
+### Customer Portal
+To test the customer portal, go to a customer's detail page in the dashboard and click **Generate Portal Link**. Open that link in a new incognito window (or different browser) to isolate cookies.
+- **Home (`/pay`):** Tests `GET /portal/subscription` and `POST /portal/subscription/cancel`.
+- **Payment Method (`/pay/payment-method`):** Tests `GET /portal/virtual-account` and saving a tokenized card (`POST /portal/payment-method/card`).
+- **Invoices (`/pay/invoices`):** Tests `GET /portal/invoices`.
+
+## 4. Assumptions & Trade-offs
 - **Recharts Dependency:** The `overview` page has placeholders for charts (`[ Recharts LineChart Placeholder ]`). We skipped installing and wiring `recharts` to focus on API completeness.
 - **Testing Coverage:** We focused on end-to-end integration rather than unit tests for this hackathon push.
 
