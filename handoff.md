@@ -7,6 +7,7 @@ The core infrastructure for the Nomba subscription engine is live:
 - HTTP API via Gin, backed by PostgreSQL `pgxpool`.
 - Asynchronous RabbitMQ publisher/consumers for webhooks.
 - Core routes for Tenants (Dashboard) and Customers (Portal).
+- Added PATCH /customers/:id to close the final loop.
 - Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`.
 
 ### Frontend (Next.js App Router)
