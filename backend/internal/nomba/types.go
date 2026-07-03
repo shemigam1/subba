@@ -25,12 +25,27 @@ type TokenData struct {
 	TokenType   string `json:"token_type"`
 }
 
+type TokenizedCardChargeOrderSplit struct {
+	AccountID string `json:"accountId"`
+	Value     string `json:"value"`
+}
+type TokenizedCardChargeOrderSplitRequest struct {
+	SplitType string                          `json:"splitType"`
+	SplitList []TokenizedCardChargeOrderSplit `json:"splitList"`
+}
+type TokenizedCardChargeOrder struct {
+	OrderReference string                                `json:"orderReference"`
+	CustomerID     string                                `json:"customerId"`
+	CallbackURL    string                                `json:"callbackUrl"`
+	CustomerEmail  string                                `json:"customerEmail"`
+	Amount         string                                `json:"amount"` // Expects a string decimal representation (e.g. "10000.00")
+	Currency       string                                `json:"currency"`
+	AccountID      string                                `json:"accountId"`
+	SplitRequest   *TokenizedCardChargeOrderSplitRequest `json:"splitRequest,omitempty"`
+}
 type TokenizedCardChargeRequest struct {
-	Amount        int64  `json:"amount"`
-	Currency      string `json:"currency"`
-	CardID        string `json:"cardId"`
-	CustomerID    string `json:"customerId"`
-	MerchantTxRef string `json:"merchantTxRef"`
+	Order    TokenizedCardChargeOrder `json:"order"`
+	TokenKey string                   `json:"tokenKey"`
 }
 
 type ChargeResponse struct {
@@ -54,7 +69,7 @@ type ChargeResponse struct {
 // }
 
 type BankTransferRequest struct {
-	AccountID     string `json:"accountId"`
+	AccountID     string `json:"-"`
 	Amount        int64  `json:"amount"`
 	BankCode      string `json:"bankCode"`
 	AccountNumber string `json:"accountNumber"`
@@ -71,7 +86,7 @@ type TransferResponse struct {
 type TransactionResult struct {
 	TransactionID string `json:"transactionId"`
 	MerchantTxRef string `json:"merchantTxRef,omitempty"`
-	Status        string `json:"status"`
+	Status        any    `json:"status"`
 	ResponseCode  string `json:"responseCode,omitempty"`
 	Message       string `json:"message,omitempty"`
 }

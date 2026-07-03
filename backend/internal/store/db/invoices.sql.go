@@ -9,7 +9,115 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const createInvoice = `-- name: CreateInvoice :one
+INSERT INTO invoices (
+    tenant_id, subscription_id, customer_id,
+    amount, currency, status,
+    period_start, period_end,
+    nomba_reference
+) VALUES (
+    $1, $2, $3,
+    $4, $5, 'open',
+    $6, $7,
+    $8
+)
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at
+`
+
+type CreateInvoiceParams struct {
+	TenantID       uuid.UUID          `json:"tenant_id"`
+	SubscriptionID pgtype.UUID        `json:"subscription_id"`
+	CustomerID     uuid.UUID          `json:"customer_id"`
+	Amount         int64              `json:"amount"`
+	Currency       string             `json:"currency"`
+	PeriodStart    pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd      pgtype.Timestamptz `json:"period_end"`
+	NombaReference *string            `json:"nomba_reference"`
+}
+
+// Inserts an immutable invoice header. Status starts as 'open'.
+// amount is in kobo (minor units). period_start/period_end use the subscription
+// billing window so the invoice is human-readable for proration display.
+func (q *Queries) CreateInvoice(ctx context.Context, arg CreateInvoiceParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, createInvoice,
+		arg.TenantID,
+		arg.SubscriptionID,
+		arg.CustomerID,
+		arg.Amount,
+		arg.Currency,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.NombaReference,
+	)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.NombaReference,
+		&i.IssuedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createInvoiceItem = `-- name: CreateInvoiceItem :one
+INSERT INTO invoice_items (
+    tenant_id, invoice_id, description,
+    amount, quantity, period_start, period_end
+) VALUES (
+    $1, $2, $3,
+    $4, $5,
+    $6, $7
+)
+RETURNING id, tenant_id, invoice_id, description, amount, quantity, period_start, period_end, created_at
+`
+
+type CreateInvoiceItemParams struct {
+	TenantID    uuid.UUID          `json:"tenant_id"`
+	InvoiceID   uuid.UUID          `json:"invoice_id"`
+	Description string             `json:"description"`
+	Amount      int64              `json:"amount"`
+	Quantity    int32              `json:"quantity"`
+	PeriodStart pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd   pgtype.Timestamptz `json:"period_end"`
+}
+
+// Inserts a single line item linked to an invoice.
+// amount may be negative (proration credit).
+func (q *Queries) CreateInvoiceItem(ctx context.Context, arg CreateInvoiceItemParams) (InvoiceItem, error) {
+	row := q.db.QueryRow(ctx, createInvoiceItem,
+		arg.TenantID,
+		arg.InvoiceID,
+		arg.Description,
+		arg.Amount,
+		arg.Quantity,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+	)
+	var i InvoiceItem
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.InvoiceID,
+		&i.Description,
+		&i.Amount,
+		&i.Quantity,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const getInvoice = `-- name: GetInvoice :one
 SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at FROM invoices WHERE id = $1
@@ -17,6 +125,68 @@ SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, pe
 
 func (q *Queries) GetInvoice(ctx context.Context, id uuid.UUID) (Invoice, error) {
 	row := q.db.QueryRow(ctx, getInvoice, id)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.NombaReference,
+		&i.IssuedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getOpenInvoiceBySubscription = `-- name: GetOpenInvoiceBySubscription :one
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at FROM invoices
+WHERE subscription_id = $1
+  AND status = 'open'
+ORDER BY issued_at DESC
+LIMIT 1
+`
+
+// Looks up the most recent 'open' invoice for a subscription. Used by the
+// invoicing handler to implement create-or-find semantics so a redelivered
+// payment.succeeded event updates the existing invoice rather than creating
+// a duplicate. (Idempotency at the insert level is handled by the wrapper;
+// this query guards against the edge-case where the handler runs twice
+// within the same idempotency window due to a crash-after-commit.)
+func (q *Queries) GetOpenInvoiceBySubscription(ctx context.Context, subscriptionID pgtype.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getOpenInvoiceBySubscription, subscriptionID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.NombaReference,
+		&i.IssuedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPaidInvoiceByNombaReference = `-- name: GetPaidInvoiceByNombaReference :one
+SELECT id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at FROM invoices
+WHERE nomba_reference = $1
+  AND status = 'paid'
+LIMIT 1
+`
+
+// Finds a paid invoice by its Nomba transaction reference.
+func (q *Queries) GetPaidInvoiceByNombaReference(ctx context.Context, nombaReference *string) (Invoice, error) {
+	row := q.db.QueryRow(ctx, getPaidInvoiceByNombaReference, nombaReference)
 	var i Invoice
 	err := row.Scan(
 		&i.ID,
@@ -106,4 +276,69 @@ func (q *Queries) ListInvoicesByCustomer(ctx context.Context, customerID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const markInvoicePaid = `-- name: MarkInvoicePaid :one
+UPDATE invoices
+SET status          = 'paid',
+    nomba_reference = COALESCE($1, nomba_reference)
+WHERE id = $2
+  AND status = 'open'
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at
+`
+
+type MarkInvoicePaidParams struct {
+	NombaReference *string   `json:"nomba_reference"`
+	ID             uuid.UUID `json:"id"`
+}
+
+// Transitions an invoice from 'open' → 'paid' and records the Nomba
+// transaction reference. Returns the updated row so callers can confirm.
+func (q *Queries) MarkInvoicePaid(ctx context.Context, arg MarkInvoicePaidParams) (Invoice, error) {
+	row := q.db.QueryRow(ctx, markInvoicePaid, arg.NombaReference, arg.ID)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.NombaReference,
+		&i.IssuedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const markInvoiceUnpaid = `-- name: MarkInvoiceUnpaid :one
+UPDATE invoices
+SET status = 'open'
+WHERE id = $1
+  AND status = 'paid'
+RETURNING id, tenant_id, subscription_id, customer_id, amount, currency, status, period_start, period_end, nomba_reference, issued_at, created_at
+`
+
+// Reverts a paid invoice back to 'open' when a payment reversal occurs.
+func (q *Queries) MarkInvoiceUnpaid(ctx context.Context, id uuid.UUID) (Invoice, error) {
+	row := q.db.QueryRow(ctx, markInvoiceUnpaid, id)
+	var i Invoice
+	err := row.Scan(
+		&i.ID,
+		&i.TenantID,
+		&i.SubscriptionID,
+		&i.CustomerID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.PeriodStart,
+		&i.PeriodEnd,
+		&i.NombaReference,
+		&i.IssuedAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }

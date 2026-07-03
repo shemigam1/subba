@@ -40,3 +40,13 @@ UPDATE subscriptions
 SET status = sqlc.arg('status')
 WHERE id   = sqlc.arg('id')
 RETURNING *;
+
+-- name: ListDueSubscriptions :many
+-- Returns all active subscriptions whose current billing period has elapsed.
+-- The scheduler sweeps these on each tick and publishes a subscription.renew
+-- event for each one so the subscription_state handler can charge the card.
+SELECT * FROM subscriptions
+WHERE status = 'active'
+  AND cancel_at_period_end = false
+  AND current_period_end IS NOT NULL
+  AND current_period_end <= now();

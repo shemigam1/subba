@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/rs/zerolog"
 
 	"github.com/shamigam1/subba/internal/broker"
@@ -40,6 +41,8 @@ func NewHandler(nombaClient *nomba.Client, log zerolog.Logger) idempotency.Handl
 		switch event.EventType {
 		case broker.RoutingKeyPaymentSucceeded:
 			return handlePaymentSucceeded(ctx, q, event, log)
+		case broker.RoutingKeyPaymentFailed, broker.RoutingKeyPaymentReversal:
+			return handlePaymentFailure(ctx, q, event, log)
 		case broker.RoutingKeySubscriptionRenew:
 			return handleSubscriptionRenew(ctx, q, nombaClient, event, log)
 		default:
@@ -73,8 +76,8 @@ func handlePaymentSucceeded(ctx context.Context, q *db.Queries, event broker.Eve
 
 	updated, err := q.AdvanceSubscriptionPeriod(ctx, db.AdvanceSubscriptionPeriodParams{
 		ID:             subID,
-		NewPeriodStart: newStart,
-		NewPeriodEnd:   newEnd,
+		NewPeriodStart: pgtype.Timestamptz{Time: newStart, Valid: true},
+		NewPeriodEnd:   pgtype.Timestamptz{Time: newEnd, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("substate: advance subscription period: %w", err)
@@ -87,6 +90,24 @@ func handlePaymentSucceeded(ctx context.Context, q *db.Queries, event broker.Eve
 		Time("period_end", newEnd).
 		Msg("substate: billing period advanced — subscription active")
 	return nil
+}
+
+// ── payment.failed & payment.reversal ─────────────────────────────────────────
+
+// handlePaymentFailure handles payment reversals and failures by locking
+// the subscription to past_due, requiring manual or scheduler retry intervention.
+func handlePaymentFailure(ctx context.Context, q *db.Queries, event broker.Event, log zerolog.Logger) error {
+	subID, err := uuid.Parse(event.SubscriptionID)
+	if err != nil {
+		return fmt.Errorf("substate: parse subscription_id for failure: %w", err)
+	}
+
+	log.Warn().
+		Str("subscription_id", event.SubscriptionID).
+		Str("event_type", event.EventType).
+		Msg("substate: payment failed or reversed — marking subscription past_due")
+
+	return setStatus(ctx, q, subID, "past_due", log)
 }
 
 // ── subscription.renew ────────────────────────────────────────────────────────
@@ -126,6 +147,12 @@ func handleSubscriptionRenew(
 	if err != nil {
 		return fmt.Errorf("substate renew: get customer: %w", err)
 	}
+
+	tenant, err := q.GetTenantByID(ctx, sub.TenantID)
+	if err != nil {
+		return fmt.Errorf("substate renew: get tenant: %w", err)
+	}
+
 	if customer.NombaTokenKey == nil || *customer.NombaTokenKey == "" {
 		// No card token — can't charge; mark past_due and let the scheduler
 		// prompt the customer to re-add their card.
@@ -140,12 +167,22 @@ func handleSubscriptionRenew(
 	// merchantTxRef = "renew:{requestID}" — unique per attempt, safe to retry.
 	merchantTxRef := "renew:" + event.RequestID
 
+	var tenantAccountID string
+	if tenant.NombaAccountID != nil {
+		tenantAccountID = *tenant.NombaAccountID
+	}
+
 	chargeResp, chargeErr := nombaClient.Charge(ctx, nomba.TokenizedCardChargeRequest{
-		Amount:        plan.Amount,
-		Currency:      plan.Currency,
-		CardID:        *customer.NombaTokenKey,
-		CustomerID:    event.CustomerID,
-		MerchantTxRef: merchantTxRef,
+		Order: nomba.TokenizedCardChargeOrder{
+			OrderReference: merchantTxRef,
+			CustomerID:     event.CustomerID,
+			CallbackURL:    "",
+			CustomerEmail:  customer.Email,
+			Amount:         fmt.Sprintf("%.2f", float64(plan.Amount)/100.0),
+			Currency:       plan.Currency,
+			AccountID:      tenantAccountID,
+		},
+		TokenKey: *customer.NombaTokenKey,
 	})
 
 	if chargeErr != nil {
@@ -174,8 +211,8 @@ func handleSubscriptionRenew(
 
 	updated, err := q.AdvanceSubscriptionPeriod(ctx, db.AdvanceSubscriptionPeriodParams{
 		ID:             subID,
-		NewPeriodStart: newStart,
-		NewPeriodEnd:   newEnd,
+		NewPeriodStart: pgtype.Timestamptz{Time: newStart, Valid: true},
+		NewPeriodEnd:   pgtype.Timestamptz{Time: newEnd, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("substate renew: advance period: %w", err)
