@@ -18,6 +18,7 @@ import (
 	"github.com/shamigam1/subba/internal/http/dto"
 	"github.com/shamigam1/subba/internal/http/middleware"
 	"github.com/shamigam1/subba/internal/http/render"
+	"github.com/shamigam1/subba/internal/nomba"
 	"github.com/shamigam1/subba/internal/notify"
 	"github.com/shamigam1/subba/internal/store"
 	"github.com/shamigam1/subba/internal/store/db"
@@ -30,10 +31,11 @@ type Handler struct {
 	admin    *pgxpool.Pool
 	sessions *auth.Sessions
 	mailer   *notify.Mailer
+	nomba    *nomba.Client
 }
 
-func New(cfg *config.Config, log zerolog.Logger, pool, admin *pgxpool.Pool, sessions *auth.Sessions, mailer *notify.Mailer) *Handler {
-	return &Handler{cfg: cfg, log: log, pool: pool, admin: admin, sessions: sessions, mailer: mailer}
+func New(cfg *config.Config, log zerolog.Logger, pool, admin *pgxpool.Pool, sessions *auth.Sessions, mailer *notify.Mailer, nc *nomba.Client) *Handler {
+	return &Handler{cfg: cfg, log: log, pool: pool, admin: admin, sessions: sessions, mailer: mailer, nomba: nc}
 }
 
 func (h *Handler) tenantQ(c *gin.Context, tenantID uuid.UUID, fn func(*db.Queries) error) error {
@@ -322,13 +324,19 @@ func cardOnFile(cust db.Customer) any {
 
 func virtualAccount(cust db.Customer) gin.H {
 	acct := ""
-	if cust.NombaVirtualAccount != nil {
+	bankName := "Nomba (pending provisioning)"
+	if cust.NombaVirtualAccount != nil && *cust.NombaVirtualAccount != "" {
 		acct = *cust.NombaVirtualAccount
+		bankName = "Nomba"
+	}
+	name := cust.Email
+	if cust.Name != nil && *cust.Name != "" {
+		name = *cust.Name
 	}
 	return gin.H{
-		"bank_name":      "Nomba (pending provisioning)",
+		"bank_name":      bankName,
 		"account_number": acct,
-		"account_name":   cust.Email,
+		"account_name":   name,
 		"amount_due":     gin.H{"amount_minor": 0, "currency": "NGN"},
 	}
 }

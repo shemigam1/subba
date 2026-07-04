@@ -59,16 +59,14 @@ func main() {
 		AccountID:    cfg.NombaAccountID,
 		Redis:        rdb,
 	})
-	_ = nombaClient // TODO: inject into webhook handler once built
+	// nombaClient is injected into the HTTP router.
 
 	plat, err := platform.New(ctx, cfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to connect dependencies")
 	}
 	defer plat.Close()
-	log.Info().Msg("dependencies connected")
-
-	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewRouter(cfg, log, plat, bc.Ch)}
+	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewRouter(cfg, log, plat, bc.Ch, nombaClient)}
 
 	go func() {
 		log.Info().Str("addr", cfg.HTTPAddr).Msg("api listening")

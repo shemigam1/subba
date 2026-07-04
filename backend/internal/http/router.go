@@ -27,7 +27,7 @@ import (
 )
 
 // NewRouter builds the fully-wired HTTP handler.
-func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, brokerCh *amqp.Channel) http.Handler {
+func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, brokerCh *amqp.Channel, nombaClient *nomba.Client) http.Handler {
 	if cfg.AppEnv != "development" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -41,8 +41,8 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, 
 	mailer := notify.NewMailer(cfg.ResendAPIKey, cfg.EmailFromName, cfg.EmailFromEmail, log)
 	mw := middleware.New(sessions, plat.AdminDB, plat.Redis, log, allowedOrigins(cfg), cfg.AppEnv != "development")
 
-	dash := dashboard.New(cfg, log, plat.DB, plat.AdminDB, sessions)
-	prt := portal.New(cfg, log, plat.DB, plat.AdminDB, sessions, mailer)
+	dash := dashboard.New(cfg, log, plat.DB, plat.AdminDB, sessions, nombaClient)
+	prt := portal.New(cfg, log, plat.DB, plat.AdminDB, sessions, mailer, nombaClient)
 
 	r := gin.New()
 	r.Use(middleware.RequestID(), middleware.Recovery(), middleware.Metrics(), mw.CORS())
@@ -109,8 +109,6 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, 
 	// --- webhooks (public, signature-verified) ---
 	wh := &webhook.Handler{
 		WebhookSecret: cfg.NombaWebhookSecret,
-		Tenants:       webhook.NewDBTenantLookup(plat.DB),
-		Customers:     webhook.NewDBCustomerLookup(plat.DB),
 		Subscriptions: webhook.NewDBSubscriptionLookup(plat.DB),
 		Publisher:     webhook.NewBrokerPublisher(brokerCh),
 		Logger:        log,

@@ -71,7 +71,7 @@ func Load() (*Config, error) {
 		NombaBaseURL:       getenv("NOMBA_BASE_URL", "https://api.nomba.com"),
 		NombaClientID:      os.Getenv("NOMBA_CLIENT_ID"),
 		NombaClientSecret:  os.Getenv("NOMBA_CLIENT_SECRET"),
-		NombaAccountID:     os.Getenv("NOMBA_ACCOUNT_ID"),
+		NombaAccountID:     getenv("NOMBA_ACCOUNT_ID", "f666ef9b-888e-4799-85ce-acb505b28023"),
 		NombaSubAccountID:  os.Getenv("NOMBA_SUBACCOUNT_ID"),
 		NombaWebhookSecret: os.Getenv("NOMBA_WEBHOOK_SECRET"),
 	}
