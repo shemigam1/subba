@@ -8,7 +8,8 @@ The core infrastructure for the Nomba subscription engine is live:
 - Asynchronous RabbitMQ publisher/consumers for webhooks.
 - Core routes for Tenants (Dashboard) and Customers (Portal).
 - Added PATCH /customers/:id to close the final loop.
-- Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`.
+- Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`. **Note:** Endpoints were recently corrected to perfectly match the official `developer.nomba.com` specs, and a mandatory `BankLookup` step was added for Transfers.
+- **Webhook Processing:** Webhook signature verification uses the correct, official `HMAC-SHA256` raw-body hex digest algorithm.
 - **Scheduler Process:** A cron-driven sweep service running in Go that publishes renewal events to RabbitMQ.
 
 ### Frontend (Next.js App Router)
@@ -57,6 +58,8 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **Worker Implementations:** The backend still needs robust retry logic in the RabbitMQ consumers.
 
 ## 5. How to Continue Development Safely
-1. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.
-2. **Backend/Integration Testers:** Set `NEXT_PUBLIC_API_MODE="live"` in `.env.local`, ensure the Go backend is running on port `8080`, and test the full end-to-end flow.
-3. When adding new endpoints, always update `v1.d.ts` (using `openapi-typescript` against the Go swagger spec) before creating new `useQuery` or `useMutation` hooks.
+1. **Nomba Credentials Safety:** The backend `config.go` is strictly configured to **crash** if `NOMBA_CLIENT_ID` does not start with the `706df6c` (TEST) prefix. Do not attempt to bypass this constraint, as using LIVE credentials could result in moving real money.
+2. **Simulating Webhooks:** You do not need the live Nomba system to test webhook processing. Simply run `node dev-utils/test_webhook.js` to simulate properly signed payloads against your local backend.
+3. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.
+4. **Backend/Integration Testers:** Set `NEXT_PUBLIC_API_MODE="live"` in `.env.local`, ensure the Go backend is running on port `8080`, and test the full end-to-end flow.
+5. When adding new endpoints, always update `v1.d.ts` (using `openapi-typescript` against the Go swagger spec) before creating new `useQuery` or `useMutation` hooks.

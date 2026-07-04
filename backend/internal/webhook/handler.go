@@ -58,8 +58,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Verify the signature before parsing further.
 	signature := r.Header.Get("nomba-signature")
-	timestamp := r.Header.Get("nomba-timestamp")
-	if err := nomba.Verify(body, signature, timestamp, h.WebhookSecret); err != nil {
+	if err := nomba.Verify(body, signature, h.WebhookSecret); err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: signature verification failed")
 		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
