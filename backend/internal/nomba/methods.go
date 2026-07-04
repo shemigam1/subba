@@ -26,7 +26,7 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/tokenized-card/charge", bytes.NewReader(body))
+		c.baseURL+"/v1/tokenized-card/charge", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba charge: build request: %w", err)
 	}
@@ -66,7 +66,7 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
 	}
 
-	url := c.baseURL + "/transfers/bank"
+	url := c.baseURL + "/v1/transfers/bank"
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, 
 		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
 	}
 
-	url := c.baseURL + "/virtual-accounts/sub-account"
+	url := c.baseURL + "/v1/virtual-accounts/sub-account"
 	
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -188,7 +188,7 @@ func (c *Client) BankLookup(ctx context.Context, req BankLookupRequest) (*BankLo
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/transfers/bank/lookup", bytes.NewReader(body))
+		c.baseURL+"/v1/transfers/bank/lookup", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba bank lookup: build request: %w", err)
 	}
