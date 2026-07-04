@@ -26,6 +26,9 @@ The frontend has been entirely migrated from raw `useEffect` fetches to a robust
 2. **TanStack Query for Auth**
    - **Decision:** We bypassed Context/Redux in favor of React Query's native cache for the `/me` user profile.
    - **Why:** The session is securely held in an `httpOnly` cookie managed by the Go backend. The frontend simply fetches the session data and caches it.
+3. **Instant Settlement over Manual Payouts**
+   - **Decision:** The backend does NOT manually initiate `Transfers` to pay out funds to tenants.
+   - **Why:** Because we scope all `VirtualAccount` creations to the tenant's `subAccountID`, Nomba's Instant Settlement automatically credits the tenant's balance instantly. Any attempt to manually implement a Payouts Worker would result in double-paying the tenant.
 
 ## 3. UI Map for Testing Backend Features
 
@@ -55,7 +58,6 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 
 ## 4. Remaining Work (If Any)
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
-- **Worker Implementations:** The backend still needs robust retry logic in the RabbitMQ consumers.
 
 ## 5. How to Continue Development Safely
 1. **Nomba Credentials Safety:** The backend `config.go` is strictly configured to **crash** if `NOMBA_CLIENT_ID` does not start with the `706df6c` (TEST) prefix. Do not attempt to bypass this constraint, as using LIVE credentials could result in moving real money.

@@ -1,32 +1,15 @@
-// Package payouts implements the payouts consumer handler.
+// Package payouts was originally intended to implement a payouts consumer handler.
 //
-// # Responsibility
+// # OBSOLETE - DO NOT IMPLEMENT
 //
-// When a payment.succeeded event is received, the payouts handler initiates a
-// bank transfer from the platform's Nomba balance to the tenant's sub-account.
-// The transfer amount is the event.Amount (the exact kobo received from the customer).
+// This worker is permanently obsolete and intentionally disabled.
+// According to Nomba's Instant Settlement architecture, when a virtual account
+// is created and scoped to a sub-account ID, Nomba automatically settles funds
+// directly into the sub-account upon payment.
 //
-// # Two-phase flow
-//
-//  1. Write a 'pending' payout record to the invoices table (status='open',
-//     nomba_reference=nil). This is the "pending payout" signal.
-//  2. Call Nomba Transfer with event.RequestID as the merchantTxRef (Nomba's
-//     idempotency key) so retries are safe.
-//  3. Update the record based on the Nomba response:
-//     - success → MarkInvoicePaid with the Nomba transaction ID
-//     - failure → leave the invoice open (the wrapper marks processed_events
-//     as 'failed'; the retry queue will redeliver)
-//
-// # Idempotency boundary
-//
-// All deduplication is the wrapper's job. The handler only reads the tx passed
-// to it and writes through that tx. It never touches processed_events.
-//
-// # Note on payout invoice
-//
-// We reuse the invoices table to record payout disbursements. A payout invoice
-// has subscription_id=NULL and its description line item reads "Payout to tenant".
-// This keeps the accounting schema simple — one table, immutable rows.
+// DO NOT attempt to implement a manual `Transfer` here. If you initiate a manual
+// transfer from the platform's balance to the sub-account, you will double-pay
+// the tenant (once automatically by Nomba, and once manually by this worker).
 package payouts
 
 import (
@@ -38,10 +21,10 @@ import (
 )
 
 // NewHandler returns the idempotency.HandlerFunc for the payouts consumer.
-// The payouts worker is currently disabled under Architecture A.
+// The payouts worker is permanently disabled.
 func NewHandler(log zerolog.Logger) idempotency.HandlerFunc {
 	return func(ctx context.Context, tx pgx.Tx, event broker.Event) error {
-		log.Debug().Str("event_type", event.EventType).Msg("payouts: worker disabled, skipping event")
+		log.Debug().Str("event_type", event.EventType).Msg("payouts: worker intentionally obsolete due to instant settlement, skipping event")
 		return nil
 	}
 }
