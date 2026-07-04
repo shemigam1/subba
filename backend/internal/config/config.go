@@ -96,7 +96,14 @@ func Load() (*Config, error) {
 	}
 	cfg.MasterEncryptionKey = key
 
-	if cfg.NombaClientID != "" && !strings.HasPrefix(cfg.NombaClientID, "706df6c") {
+	if cfg.NombaClientID != "" && strings.HasPrefix(cfg.NombaClientID, "706df6c") {
+		// If using TEST credentials, rigidly enforce sandbox URL to avoid 401/403.
+		if cfg.NombaBaseURL == "https://api.nomba.com" {
+			cfg.NombaBaseURL = "https://sandbox.nomba.com"
+		} else if cfg.NombaBaseURL != "https://sandbox.nomba.com" {
+			return nil, fmt.Errorf("NOMBA_BASE_URL must be https://sandbox.nomba.com when using TEST credentials")
+		}
+	} else if cfg.NombaClientID != "" && !strings.HasPrefix(cfg.NombaClientID, "706df6c") {
 		return nil, fmt.Errorf("NOMBA_CLIENT_ID must be a TEST credential (starting with 706df6c) to prevent accidental real money movement")
 	}
 
