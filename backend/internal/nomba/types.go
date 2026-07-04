@@ -52,21 +52,21 @@ type ChargeResponse struct {
 	Data TransactionResult `json:"data"`
 }
 
-// type BankLookupRequest struct {
-// 	BankCode      string `json:"bankCode"`
-// 	AccountNumber string `json:"accountNumber"`
-// }
+type BankLookupRequest struct {
+	BankCode      string `json:"bankCode"`
+	AccountNumber string `json:"accountNumber"`
+}
 
-// type BankLookupResponse struct {
-// 	Data BankLookupData `json:"data"`
-// }
+type BankLookupResponse struct {
+	Data BankLookupData `json:"data"`
+}
 
-// type BankLookupData struct {
-// 	AccountName   string `json:"accountName"`
-// 	AccountNumber string `json:"accountNumber"`
-// 	BankCode      string `json:"bankCode"`
-// 	BankName      string `json:"bankName"`
-// }
+type BankLookupData struct {
+	AccountName   string `json:"accountName"`
+	AccountNumber string `json:"accountNumber"`
+	BankCode      string `json:"bankCode"`
+	BankName      string `json:"bankName"`
+}
 
 type BankTransferRequest struct {
 	AccountID     string `json:"-"`

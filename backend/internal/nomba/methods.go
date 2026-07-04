@@ -26,7 +26,7 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/checkout/tokenized-card-payment", bytes.NewReader(body))
+		c.baseURL+"/tokenized-card/charge", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba charge: build request: %w", err)
 	}
@@ -66,10 +66,10 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
 	}
 
-	// Dynamically build endpoint path using /v2
-	url := c.baseURL + "/v2/transfers/bank"
+	url := c.baseURL + "/transfers/bank"
+	accountID := c.accountID
 	if req.AccountID != "" {
-		url = fmt.Sprintf("%s/v2/transfers/bank/%s", c.baseURL, req.AccountID)
+		accountID = req.AccountID
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -78,7 +78,7 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+token)
-	httpReq.Header.Set("accountId", c.accountID)
+	httpReq.Header.Set("accountId", accountID)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -150,14 +150,19 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, 
 		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/v1/accounts/virtual/%s", c.baseURL, subAccountID)
+	url := c.baseURL + "/accounts/virtual"
+	accountID := c.accountID
+	if subAccountID != "" {
+		accountID = subAccountID
+	}
+	
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: build request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+token)
-	httpReq.Header.Set("accountId", c.accountID)
+	httpReq.Header.Set("accountId", accountID)
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -173,6 +178,45 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, 
 	var out VirtualAccountResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: decode response: %w", err)
+	}
+	return &out, nil
+}
+
+// BankLookup resolves an account number to an account name before a transfer.
+func (c *Client) BankLookup(ctx context.Context, req BankLookupRequest) (*BankLookupResponse, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba bank lookup: get token: %w", err)
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba bank lookup: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/transfers/bank/lookup", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba bank lookup: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba bank lookup: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba bank lookup: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var out BankLookupResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba bank lookup: decode response: %w", err)
 	}
 	return &out, nil
 }

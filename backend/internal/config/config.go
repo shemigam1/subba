@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -94,6 +95,10 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY must decode to 32 bytes, got %d", len(key))
 	}
 	cfg.MasterEncryptionKey = key
+
+	if cfg.NombaClientID != "" && !strings.HasPrefix(cfg.NombaClientID, "706df6c") {
+		return nil, fmt.Errorf("NOMBA_CLIENT_ID must be a TEST credential (starting with 706df6c) to prevent accidental real money movement")
+	}
 
 	return cfg, nil
 }
