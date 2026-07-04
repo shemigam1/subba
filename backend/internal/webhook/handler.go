@@ -11,21 +11,9 @@ import (
 	"github.com/shamigam1/subba/internal/nomba"
 )
 
-// TenantLookup resolves which tenant owns a given virtual account number.
-// Implemented by a Postgres-backed type once that's wired up; kept as an
-// interface here so this package doesn't need to know about pgx/sql.
-type TenantLookup interface {
-	TenantID(ctx context.Context, accountNumber string) (string, error)
-}
-
 // Publisher publishes a broker WEvent under a routing key.
 type Publisher interface {
 	Publish(ctx context.Context, routingKey string, event broker.Event) error
-}
-
-// CustomerLookup resolves which customer (if any) is tied to a virtual account.
-type CustomerLookup interface {
-	CustomerIDForVirtualAccount(ctx context.Context, accountNumber string) (string, error)
 }
 
 // SubscriptionLookup resolves which subscription owns a given customer.
@@ -35,8 +23,6 @@ type SubscriptionLookup interface {
 
 type Handler struct {
 	WebhookSecret string
-	Tenants       TenantLookup
-	Customers     CustomerLookup
 	Subscriptions SubscriptionLookup
 	Publisher     Publisher
 	Logger        zerolog.Logger
@@ -72,19 +58,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Look up which tenant owns this virtual account.
-	accountNumber := raw.Data.Transaction.AliasAccountNumber
-	if accountNumber == "" {
-		h.Logger.Warn().Str("event_type", raw.EventType).Msg("webhook: no virtual account number on payload")
+	// 4. Parse the TenantID and CustomerID from the custom AliasAccountReference tag.
+	// As per the Nomba Slack advisory, we tag virtual accounts with "{tenant_id}:{customer_id}".
+	ref := raw.Data.Transaction.AliasAccountReference
+	if ref == "" {
+		h.Logger.Warn().Str("event_type", raw.EventType).Msg("webhook: missing aliasAccountReference on payload")
 		http.Error(w, "unrecognized payload shape", http.StatusUnprocessableEntity)
 		return
 	}
-	tenantID, err := h.Tenants.TenantID(ctx, accountNumber)
-	if err != nil {
-		h.Logger.Error().Err(err).Str("account_number", accountNumber).Msg("webhook: tenant lookup failed")
-		// Return 500 (not 400) — Nomba should retry, this is likely transient
-		// (DB hiccup) or an event slightly ahead of account provisioning.
-		http.Error(w, "internal error", http.StatusInternalServerError)
+	
+	// Format is "tenantID:customerID"
+	var tenantID, customerID string
+	for i, c := range ref {
+		if c == ':' {
+			tenantID = ref[:i]
+			customerID = ref[i+1:]
+			break
+		}
+	}
+	if tenantID == "" || customerID == "" {
+		h.Logger.Warn().Str("ref", ref).Msg("webhook: invalid aliasAccountReference format")
+		http.Error(w, "invalid account reference", http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -93,14 +87,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: translate failed")
 		http.Error(w, "unrecognized event type", http.StatusUnprocessableEntity)
-		return
-	}
-
-	// 6. Look up the customer for this virtual account.
-	customerID, err := h.Customers.CustomerIDForVirtualAccount(ctx, accountNumber)
-	if err != nil {
-		h.Logger.Error().Err(err).Str("account_number", accountNumber).Msg("webhook: customer lookup failed")
-		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 

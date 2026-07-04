@@ -20,6 +20,7 @@ import (
 	"github.com/shamigam1/subba/internal/http/dto"
 	"github.com/shamigam1/subba/internal/http/middleware"
 	"github.com/shamigam1/subba/internal/http/render"
+	"github.com/shamigam1/subba/internal/nomba"
 	"github.com/shamigam1/subba/internal/store"
 	"github.com/shamigam1/subba/internal/store/db"
 )
@@ -30,10 +31,11 @@ type Handler struct {
 	pool     *pgxpool.Pool // tenant-scoped (RLS)
 	admin    *pgxpool.Pool // privileged (signup/auth)
 	sessions *auth.Sessions
+	nomba    *nomba.Client
 }
 
-func New(cfg *config.Config, log zerolog.Logger, pool, admin *pgxpool.Pool, sessions *auth.Sessions) *Handler {
-	return &Handler{cfg: cfg, log: log, pool: pool, admin: admin, sessions: sessions}
+func New(cfg *config.Config, log zerolog.Logger, pool, admin *pgxpool.Pool, sessions *auth.Sessions, nc *nomba.Client) *Handler {
+	return &Handler{cfg: cfg, log: log, pool: pool, admin: admin, sessions: sessions, nomba: nc}
 }
 
 // tenantQ runs fn inside the calling tenant's RLS-scoped transaction.
@@ -303,6 +305,41 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		render.Err(c, http.StatusInternalServerError, "internal", "could not create customer")
 		return
 	}
+	// Synchronously provision the Nomba Virtual Account.
+	// As per the Slack advisory, we pass the sub-account ID into the payload
+	// and tag it with our custom `accountRef` ({tenantID}:{customerID}).
+	tID := middleware.TenantID(c)
+	accountRef := tID.String() + ":" + cust.ID.String()
+	name := "Subba Customer"
+	if req.Name != nil && *req.Name != "" {
+		name = *req.Name
+	}
+	
+	// Create the virtual account on Nomba
+	vaRes, err := h.nomba.CreateVirtualAccount(c.Request.Context(), h.cfg.NombaSubAccountID, nomba.CreateVirtualAccountRequest{
+		AccountRef:  accountRef,
+		AccountName: name,
+	})
+	if err != nil {
+		h.log.Error().Err(err).Msg("failed to provision nomba virtual account")
+		// We still return 201 Created because the customer exists, but the VA is missing.
+		// A background job could retry this in a real system.
+	} else if vaRes != nil {
+		// Update the customer with the provisioned NUBAN.
+		_ = h.tenantQ(c, func(q *db.Queries) error {
+			cust, _ = q.UpdateCustomer(c.Request.Context(), db.UpdateCustomerParams{
+				ID: cust.ID, Name: req.Name, Email: req.Email,
+			})
+			// Since our SQLC query doesn't currently allow directly updating `nomba_virtual_account`,
+			// we must execute a raw update or add a query. Let's do a direct pool query.
+			_, e := h.pool.Exec(c.Request.Context(), "UPDATE customers SET nomba_virtual_account = $1 WHERE id = $2 AND tenant_id = $3", vaRes.Data.AccountNumber, cust.ID, tID)
+			if e == nil {
+				cust.NombaVirtualAccount = &vaRes.Data.AccountNumber
+			}
+			return nil
+		})
+	}
+
 	render.JSON(c, http.StatusCreated, dto.FromCustomer(cust))
 }
 

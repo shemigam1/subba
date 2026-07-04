@@ -31,7 +31,10 @@ type RawTransaction struct {
 	ResponseCode  string  `json:"responseCode,omitempty"`
 
 	// AliasAccountNumber is the virtual account number that received the
-	// funds — this is what we use to look up which tenant/customer this
-	// event belongs to.
+	// funds.
 	AliasAccountNumber string `json:"aliasAccountNumber,omitempty"`
+
+	// AliasAccountReference is the custom tag we provided when creating the Virtual Account.
+	// We format this as "{tenantID}:{customerID}" to instantly route payments.
+	AliasAccountReference string `json:"aliasAccountReference,omitempty"`
 }

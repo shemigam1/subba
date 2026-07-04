@@ -69,7 +69,7 @@ type BankLookupData struct {
 }
 
 type BankTransferRequest struct {
-	AccountID     string `json:"-"`
+	AccountID     string `json:"accountId,omitempty"`
 	Amount        int64  `json:"amount"`
 	BankCode      string `json:"bankCode"`
 	AccountNumber string `json:"accountNumber"`
@@ -92,6 +92,7 @@ type TransactionResult struct {
 }
 
 type CreateVirtualAccountRequest struct {
+	AccountID   string `json:"accountId,omitempty"`
 	AccountRef  string `json:"accountRef"`
 	AccountName string `json:"accountName"`
 	ExpiryDate  string `json:"expiryDate,omitempty"`
