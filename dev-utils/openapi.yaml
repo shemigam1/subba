@@ -49,10 +49,12 @@ paths:
             schema: { $ref: '#/components/schemas/SignupRequest' }
       responses:
         '201':
-          description: Created; sets the dashboard session cookie.
+          description: >
+            Created. Sets the dashboard session cookie AND returns a session `token`
+            for Bearer auth (cross-site SPAs that can't use the cookie).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Tenant' }
+              schema: { $ref: '#/components/schemas/AuthResponse' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /auth/login:
@@ -67,10 +69,12 @@ paths:
             schema: { $ref: '#/components/schemas/LoginRequest' }
       responses:
         '200':
-          description: OK; sets the dashboard session cookie.
+          description: >
+            OK. Sets the dashboard session cookie AND returns a session `token` for
+            Bearer auth (send as `Authorization: Bearer <token>`).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Tenant' }
+              schema: { $ref: '#/components/schemas/AuthResponse' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /auth/logout:
     post:
@@ -432,10 +436,12 @@ paths:
                 token: { type: string, description: From the tenant-distributed portal link }
       responses:
         '200':
-          description: OK; sets the portal session cookie.
+          description: >
+            OK. Sets the portal session cookie AND returns a session `token` for
+            Bearer auth (cross-site portals that can't use the cookie).
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/PortalContext' }
+              schema: { $ref: '#/components/schemas/PortalSession' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /portal/logout:
     post:
@@ -663,6 +669,18 @@ components:
         email: { type: string, format: email }
         created_at: { type: string, format: date-time }
 
+    AuthResponse:
+      description: >
+        The tenant plus a session token. Store the token and send it as
+        `Authorization: Bearer <token>`; same-site clients may instead rely on the
+        session cookie and ignore it.
+      allOf:
+        - $ref: '#/components/schemas/Tenant'
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string, description: Dashboard session token for Bearer auth }
+
     Plan:
       type: object
       properties:
@@ -807,6 +825,17 @@ components:
           properties:
             tenant_name: { type: string }
             logo_url: { type: [string, 'null'], format: uri }
+
+    PortalSession:
+      description: >
+        The portal context plus a session token. Store the token and send it as
+        `Authorization: Bearer <token>`; same-site portals may use the cookie instead.
+      allOf:
+        - $ref: '#/components/schemas/PortalContext'
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string, description: Portal session token for Bearer auth }
 
     PaymentMethods:
       type: object

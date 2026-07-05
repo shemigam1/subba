@@ -1,0 +1,23 @@
+# Caddy terminates TLS for the API. Certificates come from Let's Encrypt
+# automatically — the only requirement is that {$API_DOMAIN} resolves to this
+# server's public IP before Caddy starts.
+
+{$API_DOMAIN} {
+	encode gzip
+
+	# Everything (dashboard/portal API + /webhooks/nomba + probes) goes to the
+	# api container on the internal compose network.
+	reverse_proxy api:8080
+}
+
+# Optional: expose Grafana for the demo. Uncomment, set {$GRAFANA_DOMAIN} in
+# .env.production, and point DNS at this server. Grafana runs with anonymous
+# admin (hackathon config), so keep the basic_auth line — generate the hash
+# with: docker run --rm caddy caddy hash-password --plaintext 'yourpassword'
+#
+# {$GRAFANA_DOMAIN} {
+# 	basic_auth {
+# 		subba <bcrypt-hash-here>
+# 	}
+# 	reverse_proxy grafana:3000
+# }

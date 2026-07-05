@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/prometheus/client_golang/prometheus"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/rs/zerolog"
 
 	"github.com/shamigam1/subba/internal/auth"

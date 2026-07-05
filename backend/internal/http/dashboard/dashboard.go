@@ -55,6 +55,14 @@ func (h *Handler) setSession(c *gin.Context, sid string) {
 	c.SetCookie(middleware.CookieSession, sid, int(sessionTTL.Seconds()), "/", "", h.cfg.AppEnv != "development", true)
 }
 
+// authResponse carries the tenant plus a session token. The token supports Bearer
+// auth for cross-site SPAs (frontend and API on different origins) that can't rely
+// on the session cookie; same-site clients can keep using the cookie and ignore it.
+type authResponse struct {
+	dto.Tenant
+	Token string `json:"token"`
+}
+
 // ----------------------------------------------------------------- auth
 
 func (h *Handler) Signup(c *gin.Context) {
@@ -85,7 +93,7 @@ func (h *Handler) Signup(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusCreated, dto.FromTenant(t))
+	render.JSON(c, http.StatusCreated, authResponse{Tenant: dto.FromTenant(t), Token: sid})
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -109,7 +117,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusOK, dto.FromTenant(t))
+	render.JSON(c, http.StatusOK, authResponse{Tenant: dto.FromTenant(t), Token: sid})
 }
 
 func (h *Handler) Logout(c *gin.Context) {

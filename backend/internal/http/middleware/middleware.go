@@ -128,44 +128,77 @@ func (m *Middleware) RateLimit(max int, window time.Duration, keyFn func(*gin.Co
 	}
 }
 
-// RequireTenant authenticates a dashboard request via a Bearer API key or the session
-// cookie, and sets the tenant id in context.
+// bearerToken extracts the token from an "Authorization: Bearer <token>" header.
+func bearerToken(c *gin.Context) string {
+	h := c.GetHeader("Authorization")
+	if strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+	}
+	return ""
+}
+
+// tenantFromSession resolves a dashboard session id to its tenant id.
+func (m *Middleware) tenantFromSession(c *gin.Context, sid string) (uuid.UUID, bool) {
+	sub, err := m.sessions.Get(c, "tenant", sid)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	tid, err := uuid.Parse(sub)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return tid, true
+}
+
+// RequireTenant authenticates a dashboard request and sets the tenant id in context.
+// It accepts, in order: a Bearer API key, a Bearer session token, or the session
+// cookie. The Bearer session token lets a cross-site SPA (frontend on a different
+// origin than the API, e.g. Vercel + CloudFront) authenticate without cookies.
 func (m *Middleware) RequireTenant() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			key := strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
-			if k, err := db.New(m.admin).GetAPIKeyByHash(c, auth.HashToken(key)); err == nil {
+		if tok := bearerToken(c); tok != "" {
+			if k, err := db.New(m.admin).GetAPIKeyByHash(c, auth.HashToken(tok)); err == nil {
 				_ = db.New(m.admin).TouchAPIKey(c, k.ID)
 				c.Set(CtxTenantID, k.TenantID)
 				c.Next()
 				return
 			}
+			if tid, ok := m.tenantFromSession(c, tok); ok {
+				c.Set(CtxTenantID, tid)
+				c.Next()
+				return
+			}
 		}
 		if sid, err := c.Cookie(CookieSession); err == nil {
-			if sub, err := m.sessions.Get(c, "tenant", sid); err == nil {
-				if tid, err := uuid.Parse(sub); err == nil {
-					c.Set(CtxTenantID, tid)
-					c.Next()
-					return
-				}
+			if tid, ok := m.tenantFromSession(c, sid); ok {
+				c.Set(CtxTenantID, tid)
+				c.Next()
+				return
 			}
 		}
 		render.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")
 	}
 }
 
-// RequirePortal authenticates a customer-portal request via the portal cookie and sets
-// both tenant id and customer id in context.
+// RequirePortal authenticates a customer-portal request via a Bearer session token or
+// the portal cookie, and sets both tenant id and customer id in context.
 func (m *Middleware) RequirePortal() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sid, err := c.Cookie(CookiePortal)
-		if err != nil {
-			render.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")
-			return
+		var sub string
+		if tok := bearerToken(c); tok != "" {
+			if s, err := m.sessions.Get(c, "portal", tok); err == nil {
+				sub = s
+			}
 		}
-		sub, err := m.sessions.Get(c, "portal", sid)
-		if err != nil {
-			render.Err(c, http.StatusUnauthorized, "unauthorized", "session expired")
+		if sub == "" {
+			if sid, err := c.Cookie(CookiePortal); err == nil {
+				if s, err := m.sessions.Get(c, "portal", sid); err == nil {
+					sub = s
+				}
+			}
+		}
+		if sub == "" {
+			render.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")
 			return
 		}
 		parts := strings.SplitN(sub, ":", 2)

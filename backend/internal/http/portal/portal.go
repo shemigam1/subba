@@ -50,6 +50,14 @@ func (h *Handler) setPortalCookie(c *gin.Context, sid string) {
 	c.SetCookie(middleware.CookiePortal, sid, int(portalSessionTTL.Seconds()), "/", "", h.cfg.AppEnv != "development", true)
 }
 
+// portalSessionResponse carries the portal context plus a session token, so a
+// cross-site portal (different origin than the API) can authenticate with a Bearer
+// header instead of the cookie.
+type portalSessionResponse struct {
+	dto.PortalContext
+	Token string `json:"token"`
+}
+
 // AccessRequest emails a magic link. Enumeration-safe: always 202 regardless of whether
 // the customer exists.
 func (h *Handler) AccessRequest(c *gin.Context) {
@@ -126,7 +134,10 @@ func (h *Handler) Session(c *gin.Context) {
 		return
 	}
 	h.setPortalCookie(c, sid)
-	render.JSON(c, http.StatusOK, h.context(c, tok.TenantID, tok.CustomerID))
+	render.JSON(c, http.StatusOK, portalSessionResponse{
+		PortalContext: h.context(c, tok.TenantID, tok.CustomerID),
+		Token:         sid,
+	})
 }
 
 func (h *Handler) Me(c *gin.Context) {
