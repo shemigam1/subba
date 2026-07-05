@@ -81,7 +81,7 @@ func TestMain(m *testing.M) {
 		defer cleanupTestTenants()
 
 		logBuf = &syncBuffer{}
-		testSrv = httptest.NewServer(httpapi.NewRouter(cfg, zerolog.New(logBuf), testPlat, nil))
+		testSrv = httptest.NewServer(httpapi.NewRouter(cfg, zerolog.New(logBuf), testPlat, nil, nil))
 		defer testSrv.Close()
 
 		return m.Run()
