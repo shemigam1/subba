@@ -75,13 +75,15 @@ services:
   # One-shot: applies goose migrations as the superuser, then exits. api/worker/
   # scheduler wait for it to complete successfully before starting.
   migrate:
-    image: ghcr.io/pressly/goose:latest
+    # Run goose from the public golang image (ghcr.io/pressly/goose is not
+    # anonymously pullable). Matches how the Makefile runs migrations locally.
+    image: golang:1.25-alpine
     volumes:
       - ./backend/migrations:/migrations:ro
     environment:
       GOOSE_DRIVER: postgres
       GOOSE_DBSTRING: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/subba?sslmode=disable
-    command: ["-dir", "/migrations", "up"]
+    command: ["sh", "-c", "CGO_ENABLED=0 go run github.com/pressly/goose/v3/cmd/goose@latest -dir /migrations up"]
     depends_on:
       postgres:
         condition: service_healthy
