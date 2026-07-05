@@ -10,15 +10,12 @@ const (
     RoutingKeySubscriptionRenew = "subscription.renew"
 
     QueueInvoicing         = "subba.invoicing"
-    QueuePayouts           = "subba.payouts"
     QueueSubscriptionState = "subba.subscription_state"
 
     QueueInvoicingRetry         = "subba.invoicing.retry"
-    QueuePayoutsRetry           = "subba.payouts.retry"
     QueueSubscriptionStateRetry = "subba.subscription_state.retry"
 
     QueueInvoicingDead         = "subba.invoicing.dead"
-    QueuePayoutsDead           = "subba.payouts.dead"
     QueueSubscriptionStateDead = "subba.subscription_state.dead"
 )
 
