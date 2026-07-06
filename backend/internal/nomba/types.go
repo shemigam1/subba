@@ -21,7 +21,7 @@ type TokenResponse struct {
 
 type TokenData struct {
 	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
+	ExpiresAt   string `json:"expiresAt"`
 	TokenType   string `json:"token_type"`
 }
 

@@ -68,7 +68,11 @@ func (c *Client) fetchToken(ctx context.Context) (string, error) {
 	}
 
 	// Cache with a safety margin so we never serve a token that's about to expire.
-	ttl := time.Duration(tr.Data.ExpiresIn-60) * time.Second
+	exp, err := time.Parse(time.RFC3339, tr.Data.ExpiresAt)
+	var ttl time.Duration
+	if err == nil {
+		ttl = time.Until(exp) - 60*time.Second
+	}
 	if ttl <= 0 {
 		ttl = 5 * time.Minute
 	}
