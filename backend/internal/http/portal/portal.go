@@ -129,7 +129,9 @@ func (h *Handler) Session(c *gin.Context) {
 		return
 	}
 	h.setPortalCookie(c, sid)
-	render.JSON(c, http.StatusOK, h.context(c, tok.TenantID, tok.CustomerID))
+	out := h.context(c, tok.TenantID, tok.CustomerID)
+	out.Token = sid
+	render.JSON(c, http.StatusOK, out)
 }
 
 func (h *Handler) Me(c *gin.Context) {

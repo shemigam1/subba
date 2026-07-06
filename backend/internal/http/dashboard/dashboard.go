@@ -87,7 +87,9 @@ func (h *Handler) Signup(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusCreated, dto.FromTenant(t))
+	out := dto.FromTenant(t)
+	out.Token = sid
+	render.JSON(c, http.StatusCreated, out)
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -111,7 +113,9 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusOK, dto.FromTenant(t))
+	out := dto.FromTenant(t)
+	out.Token = sid
+	render.JSON(c, http.StatusOK, out)
 }
 
 func (h *Handler) Logout(c *gin.Context) {

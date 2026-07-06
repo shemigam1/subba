@@ -33,6 +33,7 @@ type Tenant struct {
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	CreatedAt time.Time `json:"created_at"`
+	Token     string    `json:"token,omitempty"`
 }
 
 func FromTenant(t db.Tenant) Tenant {
@@ -183,4 +184,5 @@ type PortalContext struct {
 		TenantName string  `json:"tenant_name"`
 		LogoURL    *string `json:"logo_url"`
 	} `json:"tenant_branding"`
+	Token string `json:"token,omitempty"`
 }

@@ -132,9 +132,19 @@ func (m *Middleware) RateLimit(max int, window time.Duration, keyFn func(*gin.Co
 // cookie, and sets the tenant id in context.
 func (m *Middleware) RequireTenant() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var token string
 		if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
-			key := strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
-			if k, err := db.New(m.admin).GetAPIKeyByHash(c, auth.HashToken(key)); err == nil {
+			token = strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+			if _, err := uuid.Parse(token); err == nil {
+				if sub, err := m.sessions.Get(c, "tenant", token); err == nil {
+					if tid, err := uuid.Parse(sub); err == nil {
+						c.Set(CtxTenantID, tid)
+						c.Next()
+						return
+					}
+				}
+			}
+			if k, err := db.New(m.admin).GetAPIKeyByHash(c, auth.HashToken(token)); err == nil {
 				_ = db.New(m.admin).TouchAPIKey(c, k.ID)
 				c.Set(CtxTenantID, k.TenantID)
 				c.Next()
@@ -154,12 +164,18 @@ func (m *Middleware) RequireTenant() gin.HandlerFunc {
 	}
 }
 
-// RequirePortal authenticates a customer-portal request via the portal cookie and sets
+// RequirePortal authenticates a customer-portal request via the portal cookie or Bearer token, and sets
 // both tenant id and customer id in context.
 func (m *Middleware) RequirePortal() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sid, err := c.Cookie(CookiePortal)
-		if err != nil {
+		var sid string
+		if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
+			sid = strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
+		} else if cookie, err := c.Cookie(CookiePortal); err == nil {
+			sid = cookie
+		}
+
+		if sid == "" {
 			render.Err(c, http.StatusUnauthorized, "unauthorized", "authentication required")
 			return
 		}
