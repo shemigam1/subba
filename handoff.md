@@ -8,8 +8,9 @@ The core infrastructure for the Nomba subscription engine is live:
 - Asynchronous RabbitMQ publisher/consumers for webhooks.
 - Core routes for Tenants (Dashboard) and Customers (Portal).
 - Added PATCH /customers/:id to close the final loop.
-- Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`. **Note:** Endpoints were recently corrected to perfectly match the official `developer.nomba.com` specs, and a mandatory `BankLookup` step was added for Transfers.
-- **Webhook Processing:** Webhook signature verification uses the correct, official `HMAC-SHA256` raw-body hex digest algorithm.
+- **Virtual Account Provisioning:** Customers synchronously receive Nomba Virtual Accounts (tagged with custom `{tenantID}:{customerID}` `accountRef` markers).
+- **O(1) Webhook Processing:** Webhook handlers immediately parse the incoming `accountRef` to bypass DB lookups completely.
+- **Proprietary Webhook Signature Verification:** Nomba does NOT sign the raw HTTP body. Instead, they extract 8 specific fields from the parsed JSON payload (`eventType`, `requestId`, `userId`, `walletId`, `transactionId`, `type`, `time`, `responseCode`), concatenate them with `:` separators, append the `nomba-timestamp` HTTP header, HMAC-SHA256 the result with the webhook secret, and Base64 encode it. Our `nomba.Verify()` function implements this exact algorithm.
 - **Scheduler Process:** A cron-driven sweep service running in Go that publishes renewal events to RabbitMQ.
 
 ### Frontend (Next.js App Router)
@@ -27,7 +28,7 @@ The frontend has been entirely migrated from raw `useEffect` fetches to a robust
    - **Decision:** We bypassed Context/Redux in favor of React Query's native cache for the `/me` user profile.
    - **Why:** The session is securely held in an `httpOnly` cookie managed by the Go backend. The frontend simply fetches the session data and caches it.
 3. **Instant Settlement over Manual Payouts**
-   - **Decision:** The backend does NOT manually initiate `Transfers` to pay out funds to tenants.
+   - **Decision:** The backend does NOT use a Payouts consumer and does NOT manually initiate `Transfers` to pay out funds to tenants. The obsolete Payouts RabbitMQ topology was permanently torn down.
    - **Why:** Because we scope all `VirtualAccount` creations to the tenant's `subAccountID`, Nomba's Instant Settlement automatically credits the tenant's balance instantly. Any attempt to manually implement a Payouts Worker would result in double-paying the tenant.
 
 ## 3. UI Map for Testing Backend Features
@@ -56,10 +57,10 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **Recharts Dependency:** The `overview` page has placeholders for charts (`[ Recharts LineChart Placeholder ]`). We skipped installing and wiring `recharts` to focus on API completeness.
 - **Testing Coverage:** We focused on end-to-end integration rather than unit tests for this hackathon push.
 
-## 4. Remaining Work (If Any)
+## 5. Remaining Work (If Any)
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
 
-## 5. How to Continue Development Safely
+## 6. How to Continue Development Safely
 1. **Nomba Credentials Safety:** The backend `config.go` is strictly configured to **crash** if `NOMBA_CLIENT_ID` does not start with the `706df6c` (TEST) prefix. Do not attempt to bypass this constraint, as using LIVE credentials could result in moving real money.
 2. **Simulating Webhooks:** You do not need the live Nomba system to test webhook processing. Simply run `node dev-utils/test_webhook.js` to simulate properly signed payloads against your local backend.
 3. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.

@@ -6,7 +6,6 @@
 // Queue → handler mapping:
 //
 //	subba.invoicing          → invoicing.NewHandler   (payment.succeeded, subscription.renew)
-//	subba.payouts            → payouts.NewHandler     (payment.succeeded)
 //	subba.subscription_state → substate.NewHandler    (payment.succeeded, subscription.renew)
 package main
 
@@ -28,7 +27,6 @@ import (
 	"github.com/shamigam1/subba/internal/invoicing"
 	"github.com/shamigam1/subba/internal/nomba"
 	"github.com/shamigam1/subba/internal/observability"
-	"github.com/shamigam1/subba/internal/payouts"
 	"github.com/shamigam1/subba/internal/store"
 	"github.com/shamigam1/subba/internal/substate"
 )
@@ -100,7 +98,6 @@ func main() {
 
 	// ── Idempotency wrappers (one per logical consumer) ───────────────────────
 	invoicingIdem := idempotency.New(adminPool, rdb, "invoicing", log)
-	payoutsIdem   := idempotency.New(adminPool, rdb, "payouts", log)
 	subStateIdem  := idempotency.New(adminPool, rdb, "subscription_state", log)
 
 	// ── Consumer registry ─────────────────────────────────────────────────────
@@ -113,13 +110,6 @@ func main() {
 			handler:  invoicing.NewHandler(log),
 		},
 		{
-			queue:    broker.QueuePayouts,
-			prefetch: 5,
-			poolSize: 3,
-			retryQ:   broker.QueuePayoutsRetry,
-			handler:  payouts.NewHandler(log),
-		},
-		{
 			queue:    broker.QueueSubscriptionState,
 			prefetch: 10,
 			poolSize: 5,
@@ -130,7 +120,6 @@ func main() {
 
 	wrappers := map[string]*idempotency.Wrapper{
 		broker.QueueInvoicing:         invoicingIdem,
-		broker.QueuePayouts:           payoutsIdem,
 		broker.QueueSubscriptionState: subStateIdem,
 	}
 

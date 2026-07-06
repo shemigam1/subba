@@ -30,8 +30,10 @@ Implementing recurring billing at scale is notoriously difficult. Developers are
 
 ## Key Features
 
-- **Event-Driven Core:** A RabbitMQ Topic Exchange fanout topology that processes Nomba webhooks asynchronously, ensuring that invoicing, payouts, and state management are strictly decoupled.
-- **Cardless Subscriptions:** Allows African users to maintain recurring SaaS subscriptions using Nomba Virtual Accounts (Direct Bank Transfers).
+- **Event-Driven Core:** A RabbitMQ Topic Exchange fanout topology that processes Nomba webhooks asynchronously, ensuring that invoicing and state management are strictly decoupled.
+- **Cardless Subscriptions:** Allows African users to maintain recurring SaaS subscriptions using dynamically provisioned Nomba Virtual Accounts (Direct Bank Transfers).
+- **Native Revenue Splitting & Instant Settlement:** Instead of building a brittle, custom payouts engine, Subba relies entirely on Nomba's native Sub-Account architecture. When a subscriber pays, Nomba routes the tenant's cut directly to their sub-account and instantly settles it, completely eliminating double-payout risks.
+- **O(1) Webhook Resolution:** When provisioning Virtual Accounts, Subba injects a composite `accountRef` (`{tenantID}:{customerID}`). When Nomba webhooks arrive, the system instantly routes the payment to the correct subscription state without a single database lookup.
 - **Fault-Tolerant Consumers:** Granular Dead-Letter Exchanges (DLX) and TTL-based retry policies per consumer prevent head-of-line blocking.
 - **Strict Idempotency:** Exactly-once processing logic utilizing Redis fast-paths and Postgres ACID constraints via composite `(requestId, consumer)` keys.
 - **Dual-Session Multi-Tenancy:** Hardened logical separation preventing session collisions between the Merchant Dashboard and the Customer Portal in the same browser.
@@ -51,7 +53,7 @@ Subba is split into two primary components: the **Frontend SPA** and the **Go AP
 
 1. **The API Edge:** Receives webhooks from Nomba and authenticates incoming Merchant/Customer requests.
 2. **The Message Bus (RabbitMQ):** When a webhook arrives (e.g. a transfer succeeds), the API immediately publishes it to an exchange and returns `200 OK` to Nomba.
-3. **The Worker Pool:** Independent Go consumers subscribe to the broker. One consumer updates the Subscription State, another handles Payout generation, and a third triggers email receipts. If Payouts fail, they hit a DLX and retry later, while Subscriptions are still updated instantly.
+3. **The Worker Pool:** Independent Go consumers subscribe to the broker. One consumer updates the Subscription State, and another triggers Invoicing and receipts. If processing fails, events hit a DLX and retry later, while other subsystems remain unaffected. (Note: Payouts are handled natively and instantly by Nomba's Sub-Account architecture, abstracting that complexity out of our backend entirely).
 4. **The Scheduler:** A standalone cron-driven Go process that continuously sweeps Postgres for active subscriptions whose billing periods have elapsed, publishing `subscription.renew` events into the broker.
 
 ## Project Structure
@@ -67,8 +69,8 @@ subba/
 │   │   ├── auth/             # Session management (Redis) and password hashing
 │   │   ├── http/             # Gin router, middleware, and route handlers
 │   │   ├── store/            # PostgreSQL repository layer (pgx)
-│   │   ├── webhook/          # RabbitMQ publishers and Nomba payload validation
-│   │   └── worker/           # RabbitMQ consumers (Invoicing, State, Payouts)
+│   │   ├── webhook/          # RabbitMQ publishers, O(1) payload resolution, and Nomba payload validation
+│   │   └── worker/           # RabbitMQ consumers (Invoicing, State)
 │   └── migrations/           # SQL migration files
 │
 ├── frontend/                 # The Next.js Web Application

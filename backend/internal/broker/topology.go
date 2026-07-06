@@ -49,12 +49,6 @@ func DeclareTopology(ch *amqp.Channel) error {
 			RoutingKeyPaymentSucceeded,
 			[]string{RoutingKeySubscriptionRenew},
 		},
-		// payouts: only fires on confirmed inbound payments (revenue split).
-		{
-			QueuePayouts, QueuePayoutsRetry, QueuePayoutsDead,
-			RoutingKeyPaymentSucceeded,
-			nil,
-		},
 		// subscription_state: must see both payment confirmation and scheduler-driven renewals.
 		{
 			QueueSubscriptionState, QueueSubscriptionStateRetry, QueueSubscriptionStateDead,
