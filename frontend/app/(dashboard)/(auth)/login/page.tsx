@@ -8,6 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { api } from "@/lib/api";
+import { setTenantToken } from "@/lib/auth/token";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -30,12 +32,14 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setError(null);
-    try {
-      // Temporary mock navigation until API is wired
-      router.push("/overview");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    const { data: res, error } = await api.POST("/auth/login", { body: data });
+    if (error) {
+      setError((error as { message?: string })?.message ?? "Invalid email or password.");
+      return;
     }
+    const token = (res as { token?: string })?.token;
+    if (token) setTenantToken(token);
+    router.push("/overview");
   };
 
   return (

@@ -8,6 +8,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { api } from "@/lib/api";
+import { setTenantToken } from "@/lib/auth/token";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Company name must be at least 2 characters."),
@@ -31,12 +33,14 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setError(null);
-    try {
-      // Temporary mock navigation until API is wired
-      router.push("/overview");
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    const { data: res, error } = await api.POST("/auth/signup", { body: data });
+    if (error) {
+      setError((error as { message?: string })?.message ?? "Could not create account.");
+      return;
     }
+    const token = (res as { token?: string })?.token;
+    if (token) setTenantToken(token);
+    router.push("/overview");
   };
 
   return (
