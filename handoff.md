@@ -25,9 +25,9 @@ The frontend has been entirely migrated from raw `useEffect` fetches to a robust
 1. **MSW vs Live API (The `NEXT_PUBLIC_API_MODE` Flag)**
    - **Decision:** We kept `mockServiceWorker.js` intact but conditionally bypassed it via `.env.local`.
    - **Why:** The primary frontend developer cannot run Docker (thus cannot run the Go backend locally). This approach allows them to keep `NEXT_PUBLIC_API_MODE="mock"` to build UI offline, while the rest of the team sets it to `"live"` to test against `localhost:8080`.
-2. **TanStack Query for Auth**
-   - **Decision:** We bypassed Context/Redux in favor of React Query's native cache for the `/me` user profile.
-   - **Why:** The session is securely held in an `httpOnly` cookie managed by the Go backend. The frontend simply fetches the session data and caches it.
+2. **TanStack Query for Auth & Bearer Tokens**
+   - **Decision:** We use React Query's native cache for the `/me` user profile, and session IDs are passed via `Authorization: Bearer <token>`.
+   - **Why:** Because the frontend (Vercel) and API (CloudFront) are cross-site, `httpOnly` cookies get dropped by the browser. We updated the backend to return session tokens in the login/signup JSON payloads and updated the Go middlewares to seamlessly parse Bearer session tokens alongside legacy API keys.
 3. **Instant Settlement over Manual Payouts**
    - **Decision:** The backend does NOT use a Payouts consumer and does NOT manually initiate `Transfers` to pay out funds to tenants. The obsolete Payouts RabbitMQ topology was permanently torn down.
    - **Why:** Because we scope all `VirtualAccount` creations to the tenant's `subAccountID`, Nomba's Instant Settlement automatically credits the tenant's balance instantly. Any attempt to manually implement a Payouts Worker would result in double-paying the tenant.

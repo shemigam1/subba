@@ -156,7 +156,7 @@ func (c *Client) GetTransferStatus(ctx context.Context, sessionId string) (*Tran
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("nomba get transfer status: ref %q not found", merchantTxRef)
+		return nil, fmt.Errorf("nomba get transfer status: session id %q not found", sessionId)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("nomba get transfer status: status %d", resp.StatusCode)
