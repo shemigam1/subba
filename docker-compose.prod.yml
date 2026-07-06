@@ -1,0 +1,172 @@
+# Production stack for a single host (EC2). Run with:
+#
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# Only Caddy publishes ports (80/443). Postgres, Redis, RabbitMQ, Prometheus,
+# and Grafana live on the internal network — nothing else is reachable from
+# outside, so default-ish datastore credentials can't be probed from the
+# internet (still change them; see DEPLOY.md).
+# Shared app environment: connection strings are fixed to compose-internal
+# hostnames; secrets and URLs interpolate from --env-file .env.production.
+x-app-env: &app-env
+  DATABASE_URL: postgres://subba_app:${SUBBA_APP_PASSWORD}@postgres:5432/subba?sslmode=disable
+  ADMIN_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/subba?sslmode=disable
+  REDIS_URL: redis://redis:6379/0
+  RABBITMQ_URL: amqp://subba:${RABBITMQ_PASSWORD}@rabbitmq:5672/
+  APP_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  MASTER_ENCRYPTION_KEY: ${MASTER_ENCRYPTION_KEY:?set in .env.production}
+  PORTAL_BASE_URL: ${PORTAL_BASE_URL:?set in .env.production}
+  DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Subba}
+  EMAIL_FROM_EMAIL: ${EMAIL_FROM_EMAIL:-}
+  NOMBA_BASE_URL: ${NOMBA_BASE_URL:-https://api.nomba.com}
+  NOMBA_ACCOUNT_ID: ${NOMBA_ACCOUNT_ID:-}
+  NOMBA_SUBACCOUNT_ID: ${NOMBA_SUBACCOUNT_ID:-}
+  NOMBA_CLIENT_ID: ${NOMBA_CLIENT_ID:-}
+  NOMBA_CLIENT_SECRET: ${NOMBA_CLIENT_SECRET:-}
+  NOMBA_WEBHOOK_SECRET: ${NOMBA_WEBHOOK_SECRET:-}
+  SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-1h}
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: subba
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env.production}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d subba"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: subba
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set in .env.production}
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: applies goose migrations as the superuser, then exits. api/worker/
+  # scheduler wait for it to complete successfully before starting.
+  migrate:
+    # Run goose from the public golang image (ghcr.io/pressly/goose is not
+    # anonymously pullable). Matches how the Makefile runs migrations locally.
+    image: golang:1.25-alpine
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/subba?sslmode=disable
+    command: ["sh", "-c", "CGO_ENABLED=0 go run github.com/pressly/goose/v3/cmd/goose@latest -dir /migrations up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: { context: ./backend, target: api }
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      HTTP_ADDR: ":8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build: { context: ./backend, target: worker }
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  scheduler:
+    build: { context: ./backend, target: scheduler }
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set in .env.production}
+      GRAFANA_DOMAIN: ${GRAFANA_DOMAIN:-}
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - api
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    volumes:
+      - ./infra/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitdata:
+  caddydata:
+  caddyconfig:
+  promdata:
+  grafanadata:

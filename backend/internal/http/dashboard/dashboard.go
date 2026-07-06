@@ -315,6 +315,11 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		name = *req.Name
 	}
 	
+	// Skip virtual-account provisioning when no Nomba client is configured (e.g. tests).
+	if h.nomba == nil {
+		render.JSON(c, http.StatusCreated, dto.FromCustomer(cust))
+		return
+	}
 	// Create the virtual account on Nomba
 	vaRes, err := h.nomba.CreateVirtualAccount(c.Request.Context(), h.cfg.NombaSubAccountID, nomba.CreateVirtualAccountRequest{
 		AccountRef:  accountRef,
@@ -328,7 +333,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		// Update the customer with the provisioned NUBAN.
 		_ = h.tenantQ(c, func(q *db.Queries) error {
 			cust, _ = q.UpdateCustomer(c.Request.Context(), db.UpdateCustomerParams{
-				ID: cust.ID, Name: req.Name, Email: req.Email,
+				ID: cust.ID, Name: req.Name, Email: &req.Email,
 			})
 			// Since our SQLC query doesn't currently allow directly updating `nomba_virtual_account`,
 			// we must execute a raw update or add a query. Let's do a direct pool query.

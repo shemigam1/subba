@@ -1,0 +1,89 @@
+name: CI/CD
+
+# Build + vet + test on every push/PR. On push to main, deploy to the EC2 host.
+#
+# Split of secrets:
+#   - GitHub repo secrets: only what CI needs to reach the box (EC2_HOST/USER/SSH_KEY).
+#   - The app secrets live in ~/subba/.env.production ON THE BOX (pasted in once,
+#     never in git or GitHub secrets). CI reads that file; it does not create it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: build · vet · test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go build ./...
+      - run: go vet ./...
+      # Integration tests self-skip without Postgres/Redis/RabbitMQ (see api_test.go).
+      - run: go test ./...
+
+  deploy:
+    name: deploy to EC2
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bootstrap + deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            # 1. Ensure git + docker (first run only).
+            command -v git >/dev/null || { sudo apt-get update -y && sudo apt-get install -y git; }
+            command -v docker >/dev/null || curl -fsSL https://get.docker.com | sudo sh
+
+            # 2. Clone if missing, then hard-sync to the pushed commit.
+            [ -d ~/subba/.git ] || git clone https://github.com/shemigam1/subba.git ~/subba
+            cd ~/subba
+            git fetch --depth 1 origin main
+            git reset --hard origin/main
+
+            # 3. Serve plain HTTP :80 (CloudFront terminates TLS; no domain on the box).
+            cat > infra/caddy/Caddyfile <<'CADDYEOF'
+            :80 {
+            	encode gzip
+            	reverse_proxy api:8080
+            }
+            CADDYEOF
+
+            # 4. App secrets come from the box's own file (pasted once; never in git).
+            if [ ! -f .env.production ]; then
+              echo "ERROR: ~/subba/.env.production is missing — create it on the box once."; exit 1
+            fi
+
+            # 5. Build + start the stack.
+            sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+
+            # 6. Align the subba_app role password with the value in .env.production
+            #    (the migration seeds a default), then bounce the apps. Idempotent.
+            set -a; . ./.env.production; set +a
+            sleep 8
+            sudo docker compose --env-file .env.production -f docker-compose.prod.yml exec -T postgres \
+              psql -U postgres -d subba -c "ALTER ROLE subba_app PASSWORD '${SUBBA_APP_PASSWORD}'" || true
+            sudo docker compose --env-file .env.production -f docker-compose.prod.yml restart api worker scheduler
+            sudo docker image prune -f
+
+            # 7. Smoke-test on the box.
+            for i in $(seq 1 18); do
+              curl -fsS http://localhost/healthz >/dev/null && { echo "healthy"; exit 0; }
+              echo "waiting for stack ($i)"; sleep 5
+            done
+            echo "stack did not become healthy"; exit 1
