@@ -141,13 +141,12 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, 
 		return nil, fmt.Errorf("nomba create virtual account: get token: %w", err)
 	}
 
-	req.AccountID = subAccountID
+	url := c.baseURL + "/v1/accounts/virtual/" + subAccountID
+	
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
 	}
-
-	url := c.baseURL + "/v1/virtual-accounts/sub-account"
 	
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {

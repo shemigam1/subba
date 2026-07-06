@@ -324,6 +324,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 	vaRes, err := h.nomba.CreateVirtualAccount(c.Request.Context(), h.cfg.NombaSubAccountID, nomba.CreateVirtualAccountRequest{
 		AccountRef:  accountRef,
 		AccountName: name,
+		Currency:    "NGN",
 	})
 	if err != nil {
 		h.log.Error().Err(err).Msg("failed to provision nomba virtual account")

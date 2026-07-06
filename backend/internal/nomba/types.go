@@ -92,11 +92,11 @@ type TransactionResult struct {
 }
 
 type CreateVirtualAccountRequest struct {
-	AccountID   string `json:"accountId,omitempty"`
-	AccountRef  string `json:"accountRef"`
-	AccountName string `json:"accountName"`
-	ExpiryDate  string `json:"expiryDate,omitempty"`
-	Amount      int64  `json:"amount,omitempty"`
+	AccountRef     string  `json:"accountRef"`
+	AccountName    string  `json:"accountName"`
+	Currency       string  `json:"currency"`
+	ExpiryDate     string  `json:"expiryDate,omitempty"`
+	ExpectedAmount float64 `json:"expectedAmount,omitempty"`
 }
 
 type VirtualAccountResponse struct {
@@ -107,7 +107,7 @@ type VirtualAccount struct {
 	AccountID      string `json:"accountId,omitempty"`
 	AccountRef     string `json:"accountRef"`
 	AccountName    string `json:"accountName"`
-	AccountNumber  string `json:"accountNumber"`
+	AccountNumber  string `json:"bankAccountNumber"`
 	BankName       string `json:"bankName"`
 	BankCode       string `json:"bankCode,omitempty"`
 	ExpiryDate     string `json:"expiryDate,omitempty"`
