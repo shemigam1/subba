@@ -38,7 +38,7 @@ export default function SignupPage() {
       setError((error as { message?: string })?.message ?? "Could not create account.");
       return;
     }
-    const token = (res as { token?: string })?.token;
+    const token = res?.token;
     if (token) setTenantToken(token);
     router.push("/overview");
   };

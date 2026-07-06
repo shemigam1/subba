@@ -37,7 +37,7 @@ export default function LoginPage() {
       setError((error as { message?: string })?.message ?? "Invalid email or password.");
       return;
     }
-    const token = (res as { token?: string })?.token;
+    const token = res?.token;
     if (token) setTenantToken(token);
     router.push("/overview");
   };
