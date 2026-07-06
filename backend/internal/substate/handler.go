@@ -172,7 +172,7 @@ func handleSubscriptionRenew(
 		tenantAccountID = *tenant.NombaAccountID
 	}
 
-	chargeResp, chargeErr := nombaClient.Charge(ctx, nomba.TokenizedCardChargeRequest{
+	_, chargeErr := nombaClient.Charge(ctx, nomba.TokenizedCardChargeRequest{
 		Order: nomba.TokenizedCardChargeOrder{
 			OrderReference: merchantTxRef,
 			CustomerID:     event.CustomerID,
