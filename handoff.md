@@ -8,8 +8,8 @@ The core infrastructure for the Nomba subscription engine is live:
 - Asynchronous RabbitMQ publisher/consumers for webhooks.
 - Core routes for Tenants (Dashboard) and Customers (Portal).
 - Added PATCH /customers/:id to close the final loop.
-- Real integration with Nomba API (`CreateVirtualAccount`, `Transfer`, `Charge`) via the `nomba.Client`. **Note:** Endpoints were recently corrected to perfectly match the official `developer.nomba.com` specs, and a mandatory `BankLookup` step was added for Transfers.
-- **Webhook Processing:** Webhook signature verification uses the correct, official `HMAC-SHA256` raw-body hex digest algorithm.
+- **Virtual Account Provisioning:** Customers synchronously receive Nomba Virtual Accounts (tagged with custom `{tenantID}:{customerID}` `accountRef` markers).
+- **O(1) Webhook Processing:** Webhook handlers immediately parse the incoming `accountRef` to bypass DB lookups completely. Webhook signature verification uses the correct, official `HMAC-SHA256` raw-body hex digest algorithm.
 - **Scheduler Process:** A cron-driven sweep service running in Go that publishes renewal events to RabbitMQ.
 
 ### Frontend (Next.js App Router)
@@ -27,7 +27,7 @@ The frontend has been entirely migrated from raw `useEffect` fetches to a robust
    - **Decision:** We bypassed Context/Redux in favor of React Query's native cache for the `/me` user profile.
    - **Why:** The session is securely held in an `httpOnly` cookie managed by the Go backend. The frontend simply fetches the session data and caches it.
 3. **Instant Settlement over Manual Payouts**
-   - **Decision:** The backend does NOT manually initiate `Transfers` to pay out funds to tenants.
+   - **Decision:** The backend does NOT use a Payouts consumer and does NOT manually initiate `Transfers` to pay out funds to tenants. The obsolete Payouts RabbitMQ topology was permanently torn down.
    - **Why:** Because we scope all `VirtualAccount` creations to the tenant's `subAccountID`, Nomba's Instant Settlement automatically credits the tenant's balance instantly. Any attempt to manually implement a Payouts Worker would result in double-paying the tenant.
 
 ## 3. UI Map for Testing Backend Features
