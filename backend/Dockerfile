@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Multi-stage build for the three engine binaries. All targets share one
 # builder layer, so `--target api|worker|scheduler` reuses the same compile
 # cache. Static binaries (CGO off) on distroless: ~25MB images, no shell,
@@ -8,10 +9,17 @@ WORKDIR /src
 
 # Cache module downloads separately from source changes.
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api && \
+# BuildKit cache mounts persist the Go build + module cache ACROSS deploys, so a
+# source-only change recompiles just the changed packages instead of the whole
+# dependency tree + stdlib from scratch. This is the difference between a ~minutes
+# cold build and a ~seconds warm build on the small deploy host, and it keeps the
+# compile from starving the box (sshd resets / OOM) during on-box `--build`.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/worker ./cmd/worker && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/scheduler ./cmd/scheduler
 

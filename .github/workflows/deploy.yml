@@ -12,6 +12,15 @@ on:
   pull_request:
     branches: [main]
 
+# Serialize deploys to the single box: never let two runs SSH in and build at the
+# same time (overlapping on-box compiles saturate the t3.small — sshd resets the
+# handshake, "connection reset by peer"). A newer push waits for the in-flight run
+# to finish rather than piling on. cancel-in-progress stays false so we don't kill
+# a deploy mid-way and leave the stack half-rebuilt.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   test:
     name: build · vet · test
