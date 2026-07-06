@@ -142,25 +142,10 @@ services:
     depends_on:
       - api
 
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    volumes:
-      - ./infra/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
-      - promdata:/prometheus
-
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    environment:
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
-      GF_AUTH_DISABLE_LOGIN_FORM: "true"
-    volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafanadata:/var/lib/grafana
-    depends_on:
-      - prometheus
+  # Prometheus + Grafana are intentionally NOT run in prod: on the 2 GB t3.small
+  # they were the heaviest non-essential containers and pushed the box into OOM.
+  # The API still exposes /metrics; scrape it from an external Prometheus if needed.
+  # (They remain in docker-compose.yml for local development.)
 
 volumes:
   pgdata:
@@ -168,5 +153,3 @@ volumes:
   rabbitdata:
   caddydata:
   caddyconfig:
-  promdata:
-  grafanadata:

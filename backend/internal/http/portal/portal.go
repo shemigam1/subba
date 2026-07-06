@@ -314,7 +314,8 @@ func (h *Handler) CreateCheckoutLink(c *gin.Context) {
 			CustomerID:     customerID.String(),
 			CallbackURL:    h.cfg.PortalBaseURL + "/invoices/" + inv.ID.String(),
 			CustomerEmail:  cust.Email,
-			Amount:         fmt.Sprintf("%.2f", float64(inv.Amount)/100.0),
+			// Integer math only — never float on money (kobo → "naira.kobo").
+			Amount:         fmt.Sprintf("%d.%02d", inv.Amount/100, inv.Amount%100),
 			Currency:       "NGN",
 			AccountID:      tenantAccountID,
 		},

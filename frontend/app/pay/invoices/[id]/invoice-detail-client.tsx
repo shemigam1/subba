@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { PortalShell } from '@/components/portal/portal-shell'
 import { StatusBadge } from '@/components/portal/status-badge'
 import { formatDate, naira } from '@/lib/format'
-import { useInvoice, type ApiError } from '@/lib/portal/hooks'
+import { useCreateCheckout, useInvoice, type ApiError } from '@/lib/portal/hooks'
 
 export function InvoiceDetailClient({ id }: { id: string }) {
   return (
@@ -21,6 +21,7 @@ export function InvoiceDetailClient({ id }: { id: string }) {
 
 function InvoiceDetail({ id }: { id: string }) {
   const invoice = useInvoice(id)
+  const checkout = useCreateCheckout()
 
   if (invoice.isPending) {
     return <Skeleton className="h-64 w-full" />
@@ -78,6 +79,28 @@ function InvoiceDetail({ id }: { id: string }) {
           </div>
           <StatusBadge status={inv.status} />
         </CardHeader>
+        {inv.status !== 'paid' && inv.status !== 'void' && (
+          <CardContent className="border-b pb-4">
+            <Button
+              disabled={checkout.isPending}
+              onClick={() =>
+                checkout.mutate(id, {
+                  onSuccess: (data) => {
+                    // Hand off to Nomba's hosted payment page.
+                    if (data?.checkoutLink) window.location.href = data.checkoutLink
+                  },
+                })
+              }
+            >
+              {checkout.isPending ? 'Preparing checkout…' : 'Pay with card'}
+            </Button>
+            {checkout.isError && (
+              <p className="mt-2 text-sm text-red-700">
+                Couldn&apos;t start checkout — please try again.
+              </p>
+            )}
+          </CardContent>
+        )}
         {inv.items && inv.items.length > 0 && (
           <CardContent>
             <p className="mb-2 text-sm font-medium">Details</p>

@@ -85,6 +85,20 @@ export function useInvoice(id: string) {
   })
 }
 
+// Creates a Nomba hosted-checkout link for an unpaid invoice (card payment path).
+// The caller redirects the browser to the returned checkoutLink.
+export function useCreateCheckout() {
+  return useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { data, error, response } = await api.POST('/portal/invoices/{id}/checkout', {
+        params: { path: { id: invoiceId } },
+      })
+      ensureOk(response as Response, error)
+      return data
+    },
+  })
+}
+
 export function usePaymentMethod() {
   return useQuery({
     queryKey: ['portal', 'payment-method'],

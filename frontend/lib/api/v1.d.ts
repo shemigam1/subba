@@ -1190,6 +1190,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/portal/invoices/{id}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a Nomba hosted-checkout link to pay this invoice by card
+         * @description Creates a Nomba checkout order (with card tokenization enabled) for an unpaid invoice and returns the hosted payment page URL. 400 if the invoice is already paid; 404 if it isn't the caller's invoice.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /**
+                             * Format: uri
+                             * @description Nomba hosted payment page
+                             */
+                            checkoutLink: string;
+                        };
+                    };
+                };
+                400: components["responses"]["ValidationError"];
+                404: components["responses"]["NotFound"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/portal/payment-method": {
         parameters: {
             query?: never;

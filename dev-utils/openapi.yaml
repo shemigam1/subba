@@ -512,6 +512,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/InvoiceDetail' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /portal/invoices/{id}/checkout:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Portal]
+      summary: Create a Nomba hosted-checkout link to pay this invoice by card
+      description: >
+        Creates a Nomba checkout order (with card tokenization enabled) for an
+        unpaid invoice and returns the hosted payment page URL. 400 if the
+        invoice is already paid; 404 if it isn't the caller's invoice.
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkoutLink]
+                properties:
+                  checkoutLink: { type: string, format: uri, description: Nomba hosted payment page }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /portal/payment-method:
     get:
       tags: [Portal]

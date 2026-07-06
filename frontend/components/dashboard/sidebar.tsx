@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -9,7 +9,11 @@ import {
   CreditCard,
   Key,
   Settings,
+  LogOut,
 } from "lucide-react";
+import { api } from "@/lib/api";
+import { clearTenantToken } from "@/lib/auth/token";
+import { useUser } from "@/lib/hooks/use-user";
 
 // In a real shadcn setup with itshover, these would be animated ItsHover icons.
 const navItems = [
@@ -22,6 +26,26 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: user } = useUser();
+
+  async function signOut() {
+    // Best-effort server-side revoke; the local token clear is what matters.
+    try {
+      await api.POST("/auth/logout");
+    } catch {
+      /* ignore — token clear below still signs us out locally */
+    }
+    clearTenantToken();
+    router.replace("/login");
+  }
+
+  const initials = (user?.name ?? "?")
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 
   return (
     <aside className="w-64 flex-shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col h-screen">
@@ -58,12 +82,19 @@ export function Sidebar() {
       <div className="p-4 border-t border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-medium text-xs">
-            JD
+            {initials}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-900">Jane Doe</span>
-            <span className="text-xs text-slate-500">jane@example.com</span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-medium text-slate-900 truncate">{user?.name ?? "…"}</span>
+            <span className="text-xs text-slate-500 truncate">{user?.email ?? ""}</span>
           </div>
+          <button
+            onClick={signOut}
+            title="Sign out"
+            className="ml-auto text-slate-500 hover:text-slate-900 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>

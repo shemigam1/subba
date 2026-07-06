@@ -69,8 +69,10 @@ jobs:
               echo "ERROR: ~/subba/.env.production is missing — create it on the box once."; exit 1
             fi
 
-            # 5. Build + start the stack.
-            sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+            # 5. Build + start the stack. --remove-orphans stops containers for
+            #    services that were removed from the compose file (e.g. prometheus,
+            #    grafana) so they don't linger and consume memory.
+            sudo docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --remove-orphans
 
             # 6. Align the subba_app role password with the value in .env.production
             #    (the migration seeds a default), then bounce the apps. Idempotent.

@@ -53,7 +53,7 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **Home (`/pay`):** Tests `GET /portal/subscription` and `POST /portal/subscription/cancel`.
 - **Payment Method (`/pay/payment-method`):** Tests `GET /portal/virtual-account` and saving a tokenized card (`POST /portal/payment-method/card`).
 - **Invoices (`/pay/invoices`):** Tests `GET /portal/invoices`.
-- **Checkout:** The frontend should hit `POST /v1/portal/invoices/:id/checkout` to generate an online checkout link for an invoice, replacing the manual token modal.
+- **Checkout:** Implemented — the invoice detail page (`/pay/invoices/[id]`) shows a **"Pay with card"** button on any non-paid invoice. It calls `POST /portal/invoices/{id}/checkout` and redirects the browser to the returned Nomba `checkoutLink`. The endpoint is documented in `dev-utils/openapi.yaml` and typed in `lib/api/v1.d.ts`.
 
 ## 4. Assumptions & Trade-offs
 - **Recharts Dependency:** The `overview` page has placeholders for charts (`[ Recharts LineChart Placeholder ]`). We skipped installing and wiring `recharts` to focus on API completeness.
@@ -61,6 +61,18 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 
 ## 5. Remaining Work (If Any)
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
+- **Checkout reconciliation:** after a hosted-checkout payment, the invoice flips to `paid` only via the Nomba webhook → invoicing consumer path. The portal invoice page doesn't poll; the customer sees the update on refresh.
+- **`next.config.ts` suppresses TS/ESLint errors during builds** (`ignoreBuildErrors`, committed for Vercel). Compensating control: keep `npx tsc --noEmit` clean locally — it is, except one known benign error in `next.config.ts` itself (`eslint` key no longer in Next 16's `NextConfig` type).
+- **Local dev papercut:** `goose@latest` now requires Go ≥ 1.25.7, while local dev pins `GOTOOLCHAIN=go1.25.0` (to match CI). Workaround: `GOTOOLCHAIN=auto make migrate`. Proper fix: pin a goose version in the Makefile.
+
+## 5b. Audit log (2026-07-06)
+A full backend-vs-contract-vs-frontend audit found and fixed:
+1. **[critical] Dashboard Bearer auth was broken** — `RequireTenant` gated the session lookup on `uuid.Parse(token)`, but session ids are 43-char base64url strings (`auth.RandomToken`), never UUIDs, so every dashboard Bearer call 401'd (login → instant redirect loop in the cross-site deployment). Fixed: session lookup first (Redis), fall through to API-key hash. Verified live: session Bearer 200, API-key Bearer 200, garbage 401, portal Bearer 200.
+2. **Float math on money** in `CreateCheckoutLink` (`fmt.Sprintf("%.2f", float64(amount)/100)`) → replaced with integer math (`%d.%02d`).
+3. **Checkout endpoint was undocumented and unused** — added to `dev-utils/openapi.yaml`, regenerated `v1.d.ts`, wired a "Pay with card" button on the portal invoice detail page.
+4. **No dashboard sign-out existed** — sidebar footer showed a hardcoded "Jane Doe"; now shows the real tenant (from `useUser`) with a working sign-out (POST /auth/logout + clear token + redirect).
+5. **Phantom fields on the customer detail page** — `phone` (collected/PATCHed but not in the schema; silently dropped), invoice `created_at` (API sends `issued_at`; the Date column rendered garbage), `invoice_url` (never returned; dead column). All removed; every call on that page is now typed (no `api as any` remains in the app).
+Verified after fixes: `go build`/`go vet` clean, full backend test suite green against live infra, `tsc` clean (except the known next.config quirk), `next build` passes (15 routes).
 
 ## 6. How to Continue Development Safely
 1. **Nomba Credentials Safety:** The backend `config.go` was previously configured to crash if live credentials were used, but this safety check has been removed as per Hackathon guidelines to allow live testing on `api.nomba.com`. Ensure you only use test accounts when interacting with the live system during development.

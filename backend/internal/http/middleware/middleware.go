@@ -135,13 +135,15 @@ func (m *Middleware) RequireTenant() gin.HandlerFunc {
 		var token string
 		if h := c.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
 			token = strings.TrimSpace(strings.TrimPrefix(h, "Bearer "))
-			if _, err := uuid.Parse(token); err == nil {
-				if sub, err := m.sessions.Get(c, "tenant", token); err == nil {
-					if tid, err := uuid.Parse(sub); err == nil {
-						c.Set(CtxTenantID, tid)
-						c.Next()
-						return
-					}
+			// Try a session token first (cheap Redis lookup). Session ids are
+			// 43-char base64url strings from auth.RandomToken — NOT UUIDs, so
+			// don't gate this on uuid.Parse(token); only the stored subject
+			// (the tenant id) is a UUID.
+			if sub, err := m.sessions.Get(c, "tenant", token); err == nil {
+				if tid, err := uuid.Parse(sub); err == nil {
+					c.Set(CtxTenantID, tid)
+					c.Next()
+					return
 				}
 			}
 			if k, err := db.New(m.admin).GetAPIKeyByHash(c, auth.HashToken(token)); err == nil {

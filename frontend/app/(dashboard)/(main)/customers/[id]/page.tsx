@@ -14,13 +14,7 @@ type Customer = components["schemas"]["Customer"];
 type Subscription = components["schemas"]["Subscription"];
 type Plan = components["schemas"]["Plan"];
 
-interface Invoice {
-  id: string;
-  amount_minor: number;
-  status: string;
-  created_at: string;
-  invoice_url?: string;
-}
+type Invoice = components["schemas"]["Invoice"];
 
 export default function CustomerDetailPage({ params }: { params: { id: string } }) {
   const customerId = params.id;
@@ -35,7 +29,6 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
   // Edit Form state
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editPhone, setEditPhone] = useState("");
 
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ["customers", customerId],
@@ -51,9 +44,9 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
   const { data: invoices = [], isLoading: loadingInvoices } = useQuery({
     queryKey: ["customers", customerId, "invoices"],
     queryFn: async () => {
-      const { data, error } = await (api as any).GET(`/customers/${customerId}/invoices`);
+      const { data, error } = await api.GET("/customers/{id}/invoices", { params: { path: { id: customerId } } });
       if (error) throw error;
-      return data as Invoice[];
+      return (data ?? []) as Invoice[];
     },
   });
 
@@ -81,9 +74,9 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
 
   const updateCustomer = useMutation({
     mutationFn: async () => {
-      const { data, error } = await (api as any).PATCH("/customers/{id}", {
+      const { data, error } = await api.PATCH("/customers/{id}", {
         params: { path: { id: customerId } },
-        body: { name: editName, email: editEmail, phone: editPhone }
+        body: { name: editName, email: editEmail }
       });
       if (error) throw error;
       return data;
@@ -97,7 +90,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
 
   const createSubscription = useMutation({
     mutationFn: async () => {
-      const { data, error } = await (api as any).POST("/subscriptions", {
+      const { data, error } = await api.POST("/subscriptions", {
         body: { customer_id: customerId, plan_id: selectedPlanId }
       });
       if (error) throw error;
@@ -111,7 +104,8 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
 
   const cancelSubscription = useMutation({
     mutationFn: async (subId: string) => {
-      const { data, error } = await (api as any).POST(`/subscriptions/${subId}/cancel`, {
+      const { data, error } = await api.POST("/subscriptions/{id}/cancel", {
+        params: { path: { id: subId } },
         body: { at_period_end: false }
       });
       if (error) throw error;
@@ -125,7 +119,6 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
   function openEditDrawer() {
     setEditName(customer?.name || "");
     setEditEmail(customer?.email || "");
-    setEditPhone((customer as any)?.phone || "");
     setIsEditDrawerOpen(true);
   }
 
@@ -154,7 +147,6 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.name || customer.email}</h1>
               <p className="text-sm text-slate-500">{customer.email}</p>
-              {(customer as any).phone && <p className="text-sm text-slate-500">{(customer as any).phone}</p>}
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -254,7 +246,6 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
                   <th className="px-6 py-4">Amount</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -262,16 +253,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-slate-900 tabular-nums">{naira(inv.amount_minor || 0)}</td>
                     <td className="px-6 py-4 capitalize">{inv.status}</td>
-                    <td className="px-6 py-4">{formatDate(inv.created_at)}</td>
-                    <td className="px-6 py-4 text-right">
-                      {inv.invoice_url ? (
-                        <a href={inv.invoice_url} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">
-                          View
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+                    <td className="px-6 py-4">{inv.issued_at ? formatDate(inv.issued_at) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -345,14 +327,6 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
                     placeholder="john@example.com" 
                     value={editEmail} 
                     onChange={(e) => setEditEmail(e.target.value)} 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-900">Phone</label>
-                  <Input 
-                    placeholder="+234..." 
-                    value={editPhone} 
-                    onChange={(e) => setEditPhone(e.target.value)} 
                   />
                 </div>
               </form>
