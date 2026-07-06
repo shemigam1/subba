@@ -62,7 +62,7 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
 
 ## 6. How to Continue Development Safely
-1. **Nomba Credentials Safety:** The backend `config.go` is strictly configured to **crash** if `NOMBA_CLIENT_ID` does not start with the `706df6c` (TEST) prefix. Do not attempt to bypass this constraint, as using LIVE credentials could result in moving real money.
+1. **Nomba Credentials Safety:** The backend `config.go` was previously configured to crash if live credentials were used, but this safety check has been removed as per Hackathon guidelines to allow live testing on `api.nomba.com`. Ensure you only use test accounts when interacting with the live system during development.
 2. **Simulating Webhooks:** You do not need the live Nomba system to test webhook processing. Simply run `node dev-utils/test_webhook.js` to simulate properly signed payloads against your local backend.
 3. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.
 4. **Backend/Integration Testers:** Set `NEXT_PUBLIC_API_MODE="live"` in `.env.local`, ensure the Go backend is running on port `8080`, and test the full end-to-end flow.
