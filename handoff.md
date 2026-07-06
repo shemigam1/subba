@@ -57,10 +57,10 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **Recharts Dependency:** The `overview` page has placeholders for charts (`[ Recharts LineChart Placeholder ]`). We skipped installing and wiring `recharts` to focus on API completeness.
 - **Testing Coverage:** We focused on end-to-end integration rather than unit tests for this hackathon push.
 
-## 4. Remaining Work (If Any)
+## 5. Remaining Work (If Any)
 - **UI Polish:** Replace the chart placeholders on the Overview page with actual graphs.
 
-## 5. How to Continue Development Safely
+## 6. How to Continue Development Safely
 1. **Nomba Credentials Safety:** The backend `config.go` is strictly configured to **crash** if `NOMBA_CLIENT_ID` does not start with the `706df6c` (TEST) prefix. Do not attempt to bypass this constraint, as using LIVE credentials could result in moving real money.
 2. **Simulating Webhooks:** You do not need the live Nomba system to test webhook processing. Simply run `node dev-utils/test_webhook.js` to simulate properly signed payloads against your local backend.
 3. **Frontend Devs without Docker:** Keep `NEXT_PUBLIC_API_MODE="mock"` in `.env.local` to run against MSW.
