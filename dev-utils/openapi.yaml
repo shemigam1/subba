@@ -662,6 +662,9 @@ components:
         name: { type: string }
         email: { type: string, format: email }
         created_at: { type: string, format: date-time }
+        # Bearer session token — present only on signup/login responses (for
+        # cross-site SPAs that can't use the session cookie). Absent on /me.
+        token: { type: string }
 
     Plan:
       type: object
@@ -807,6 +810,8 @@ components:
           properties:
             tenant_name: { type: string }
             logo_url: { type: [string, 'null'], format: uri }
+        # Bearer session token — present only on the /portal/session response.
+        token: { type: string }
 
     PaymentMethods:
       type: object

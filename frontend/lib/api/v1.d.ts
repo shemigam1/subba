@@ -1406,6 +1406,7 @@ export interface components {
             email?: string;
             /** Format: date-time */
             created_at?: string;
+            token?: string;
         };
         Plan: {
             /** Format: uuid */
@@ -1564,6 +1565,7 @@ export interface components {
                 /** Format: uri */
                 logo_url?: string | null;
             };
+            token?: string;
         };
         PaymentMethods: {
             card?: components["schemas"]["CardOnFile"] | null;
