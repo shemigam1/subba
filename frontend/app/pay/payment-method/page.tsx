@@ -152,7 +152,7 @@ function PaymentMethod() {
                 id="save-card-form" 
                 onSubmit={(e) => {
                   e.preventDefault();
-                  saveCard.mutate({ tokenized_card: tokenizedCard }, {
+                  saveCard.mutate({ nomba_token_key: tokenizedCard }, {
                     onSuccess: () => {
                       setIsAddCardOpen(false);
                       setTokenizedCard('');

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/lib/api'
+import { setPortalToken, clearPortalToken } from '@/lib/auth/token'
 import type { components } from '@/lib/api/v1'
 
 export type Subscription = components['schemas']['Subscription']
@@ -116,7 +117,12 @@ export function useExchangeToken() {
       ensureOk(response as Response, error)
       return data
     },
-    onSuccess: (ctx) => qc.setQueryData(['portal', 'me'], ctx),
+    onSuccess: (ctx) => {
+      // Store the portal session token for Bearer auth (cross-site: no cookie).
+      const token = ctx?.token
+      if (token) setPortalToken(token)
+      qc.setQueryData(['portal', 'me'], ctx)
+    },
   })
 }
 
@@ -140,7 +146,10 @@ export function usePortalLogout() {
     mutationFn: async () => {
       await api.POST('/portal/logout')
     },
-    onSuccess: () => qc.clear(),
+    onSettled: () => {
+      clearPortalToken()
+      qc.clear()
+    },
   })
 }
 
@@ -148,7 +157,7 @@ export function useVirtualAccount() {
   return useQuery({
     queryKey: ['portal', 'virtual-account'],
     queryFn: async () => {
-      const { data, error, response } = await (api as any).GET('/portal/virtual-account')
+      const { data, error, response } = await api.GET('/portal/virtual-account')
       ensureOk(response as Response, error)
       return data
     },
@@ -158,9 +167,9 @@ export function useVirtualAccount() {
 export function useSaveCard() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: { tokenized_card: string }) => {
-      const { data, error, response } = await (api as any).POST('/portal/payment-method/card', {
-        body: { tokenized_card: vars.tokenized_card },
+    mutationFn: async (vars: { nomba_token_key: string }) => {
+      const { data, error, response } = await api.POST('/portal/payment-method/card', {
+        body: { nomba_token_key: vars.nomba_token_key },
       })
       ensureOk(response as Response, error)
       return data
