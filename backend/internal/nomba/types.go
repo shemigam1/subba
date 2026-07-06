@@ -49,7 +49,38 @@ type TokenizedCardChargeRequest struct {
 }
 
 type ChargeResponse struct {
-	Data TransactionResult `json:"data"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Data        struct {
+		Status  any    `json:"status"` // The docs show "true" as a string or true as bool
+		Message string `json:"message"`
+	} `json:"data"`
+}
+
+type CreateCheckoutOrderRequest struct {
+	Order        CheckoutOrder `json:"order"`
+	TokenizeCard bool          `json:"tokenizeCard,omitempty"`
+}
+
+type CheckoutOrder struct {
+	OrderReference        string                                `json:"orderReference,omitempty"`
+	CustomerID            string                                `json:"customerId,omitempty"`
+	CallbackURL           string                                `json:"callbackUrl,omitempty"`
+	CustomerEmail         string                                `json:"customerEmail,omitempty"`
+	Amount                string                                `json:"amount"` // String decimal e.g. "10000.00"
+	Currency              string                                `json:"currency"`
+	AccountID             string                                `json:"accountId,omitempty"`
+	AllowedPaymentMethods []string                              `json:"allowedPaymentMethods,omitempty"`
+	SplitRequest          *TokenizedCardChargeOrderSplitRequest `json:"splitRequest,omitempty"`
+}
+
+type CreateCheckoutOrderResponse struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Data        struct {
+		CheckoutLink   string `json:"checkoutLink"`
+		OrderReference string `json:"orderReference"`
+	} `json:"data"`
 }
 
 type BankLookupRequest struct {

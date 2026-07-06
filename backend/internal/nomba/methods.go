@@ -26,7 +26,7 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/tokenized-card/charge", bytes.NewReader(body))
+		c.baseURL+"/v1/checkout/tokenized-card-payment", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba charge: build request: %w", err)
 	}
@@ -48,6 +48,45 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	var out ChargeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, fmt.Errorf("nomba charge: decode response: %w", err)
+	}
+	return &out, nil
+}
+
+// CreateCheckoutOrder creates an online checkout link for a customer to pay.
+func (c *Client) CreateCheckoutOrder(ctx context.Context, req CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: get token: %w", err)
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/v1/checkout/order", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba checkout order: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var out CreateCheckoutOrderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba checkout order: decode response: %w", err)
 	}
 	return &out, nil
 }
