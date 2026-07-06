@@ -4,6 +4,7 @@ package portal
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -258,6 +259,76 @@ func (h *Handler) GetInvoice(c *gin.Context) {
 		detail.Items = append(detail.Items, dto.FromInvoiceItem(it))
 	}
 	render.JSON(c, http.StatusOK, detail)
+}
+
+func (h *Handler) CreateCheckoutLink(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		render.Err(c, http.StatusBadRequest, "bad_request", "invalid id")
+		return
+	}
+	customerID := middleware.CustomerID(c)
+	tenantID := middleware.TenantID(c)
+
+	var inv db.Invoice
+	var cust db.Customer
+	var tenant db.Tenant
+	err = h.tenantQ(c, tenantID, func(q *db.Queries) error {
+		var e error
+		inv, e = q.GetInvoice(c.Request.Context(), id)
+		if e != nil {
+			return e
+		}
+		cust, e = q.GetCustomer(c.Request.Context(), customerID)
+		if e != nil {
+			return e
+		}
+		tenant, e = q.GetTenantByID(c.Request.Context(), tenantID)
+		return e
+	})
+	
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && inv.CustomerID != customerID) {
+		render.Err(c, http.StatusNotFound, "not_found", "invoice not found")
+		return
+	}
+	if err != nil {
+		render.Err(c, http.StatusInternalServerError, "internal", "could not load invoice")
+		return
+	}
+
+	if inv.Status == "paid" {
+		render.Err(c, http.StatusBadRequest, "bad_request", "invoice is already paid")
+		return
+	}
+
+	var tenantAccountID string
+	if tenant.NombaAccountID != nil {
+		tenantAccountID = *tenant.NombaAccountID
+	}
+
+	req := nomba.CreateCheckoutOrderRequest{
+		Order: nomba.CheckoutOrder{
+			OrderReference: "inv:" + inv.ID.String(),
+			CustomerID:     customerID,
+			CallbackURL:    h.cfg.PortalBaseURL + "/invoices/" + inv.ID.String(),
+			CustomerEmail:  cust.Email,
+			Amount:         fmt.Sprintf("%.2f", float64(inv.Amount)/100.0),
+			Currency:       "NGN",
+			AccountID:      tenantAccountID,
+		},
+		TokenizeCard: true,
+	}
+
+	resp, err := h.nomba.CreateCheckoutOrder(c.Request.Context(), req)
+	if err != nil {
+		h.log.Error().Err(err).Msg("nomba checkout order failed")
+		render.Err(c, http.StatusInternalServerError, "nomba_error", "failed to create checkout link")
+		return
+	}
+
+	render.JSON(c, http.StatusOK, gin.H{
+		"checkoutLink": resp.Data.CheckoutLink,
+	})
 }
 
 // PaymentMethod returns the card on file plus the cardless virtual account. The Nomba

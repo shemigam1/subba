@@ -103,6 +103,7 @@ func NewRouter(cfg *config.Config, log zerolog.Logger, plat *platform.Platform, 
 	p.POST("/subscription/cancel", prt.CancelSubscription)
 	p.GET("/invoices", prt.ListInvoices)
 	p.GET("/invoices/:id", prt.GetInvoice)
+	p.POST("/invoices/:id/checkout", prt.CreateCheckoutLink)
 	p.GET("/payment-method", prt.PaymentMethod)
 	p.POST("/payment-method/card", prt.SaveCard)
 	p.GET("/virtual-account", prt.VirtualAccount)

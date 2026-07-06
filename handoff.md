@@ -53,6 +53,7 @@ To test the customer portal, go to a customer's detail page in the dashboard and
 - **Home (`/pay`):** Tests `GET /portal/subscription` and `POST /portal/subscription/cancel`.
 - **Payment Method (`/pay/payment-method`):** Tests `GET /portal/virtual-account` and saving a tokenized card (`POST /portal/payment-method/card`).
 - **Invoices (`/pay/invoices`):** Tests `GET /portal/invoices`.
+- **Checkout:** The frontend should hit `POST /v1/portal/invoices/:id/checkout` to generate an online checkout link for an invoice, replacing the manual token modal.
 
 ## 4. Assumptions & Trade-offs
 - **Recharts Dependency:** The `overview` page has placeholders for charts (`[ Recharts LineChart Placeholder ]`). We skipped installing and wiring `recharts` to focus on API completeness.
