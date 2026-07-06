@@ -115,7 +115,7 @@ type TransferResponse struct {
 }
 
 type TransactionResult struct {
-	TransactionID string `json:"transactionId"`
+	TransactionID string `json:"id"`
 	MerchantTxRef string `json:"merchantTxRef,omitempty"`
 	Status        any    `json:"status"`
 	ResponseCode  string `json:"responseCode,omitempty"`

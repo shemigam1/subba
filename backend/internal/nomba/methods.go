@@ -94,7 +94,7 @@ func (c *Client) CreateCheckoutOrder(ctx context.Context, req CreateCheckoutOrde
 // Transfer initiates a bank transfer from the merchant's Nomba balance.
 // merchantTxRef serves as Nomba's idempotency key — use event.RequestID
 // (prefixed to stay unique across payout types) so retries are safe.
-func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*TransferResponse, error) {
+func (c *Client) Transfer(ctx context.Context, subAccountID string, req BankTransferRequest) (*TransferResponse, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("nomba transfer: get token: %w", err)
@@ -105,7 +105,7 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
 	}
 
-	url := c.baseURL + "/v1/transfers/bank"
+	url := c.baseURL + "/v2/transfers/bank/" + subAccountID
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -134,16 +134,15 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 }
 
 // GetTransferStatus polls for the outcome of a previously initiated transfer.
-// Use this when Transfer returns a non-final status so the payout handler can
-// decide whether to retry or mark the record as failed.
-func (c *Client) GetTransferStatus(ctx context.Context, merchantTxRef string) (*TransferResponse, error) {
+// Nomba requery uses sessionId, not merchantTxRef.
+func (c *Client) GetTransferStatus(ctx context.Context, sessionId string) (*TransferResponse, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("nomba get transfer status: get token: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.baseURL+"/v1/transfers/"+merchantTxRef, nil)
+		c.baseURL+"/v1/transactions/requery/"+sessionId, nil)
 	if err != nil {
 		return nil, fmt.Errorf("nomba get transfer status: build request: %w", err)
 	}
