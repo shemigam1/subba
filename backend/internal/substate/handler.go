@@ -203,7 +203,6 @@ func handleSubscriptionRenew(
 	// ── Charge succeeded ──────────────────────────────────────────────────────
 	log.Info().
 		Str("subscription_id", event.SubscriptionID).
-		Str("nomba_transaction_id", chargeResp.Data.TransactionID).
 		Str("merchant_tx_ref", merchantTxRef).
 		Msg("substate renew: card charge succeeded — advancing period")
 

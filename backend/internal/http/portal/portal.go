@@ -311,7 +311,7 @@ func (h *Handler) CreateCheckoutLink(c *gin.Context) {
 	req := nomba.CreateCheckoutOrderRequest{
 		Order: nomba.CheckoutOrder{
 			OrderReference: "inv:" + inv.ID.String(),
-			CustomerID:     customerID,
+			CustomerID:     customerID.String(),
 			CallbackURL:    h.cfg.PortalBaseURL + "/invoices/" + inv.ID.String(),
 			CustomerEmail:  cust.Email,
 			Amount:         fmt.Sprintf("%.2f", float64(inv.Amount)/100.0),
