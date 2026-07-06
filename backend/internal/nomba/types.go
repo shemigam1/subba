@@ -21,7 +21,7 @@ type TokenResponse struct {
 
 type TokenData struct {
 	AccessToken string `json:"access_token"`
-	ExpiresIn   int    `json:"expires_in"`
+	ExpiresAt   string `json:"expiresAt"`
 	TokenType   string `json:"token_type"`
 }
 
@@ -49,7 +49,38 @@ type TokenizedCardChargeRequest struct {
 }
 
 type ChargeResponse struct {
-	Data TransactionResult `json:"data"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Data        struct {
+		Status  any    `json:"status"` // The docs show "true" as a string or true as bool
+		Message string `json:"message"`
+	} `json:"data"`
+}
+
+type CreateCheckoutOrderRequest struct {
+	Order        CheckoutOrder `json:"order"`
+	TokenizeCard bool          `json:"tokenizeCard,omitempty"`
+}
+
+type CheckoutOrder struct {
+	OrderReference        string                                `json:"orderReference,omitempty"`
+	CustomerID            string                                `json:"customerId,omitempty"`
+	CallbackURL           string                                `json:"callbackUrl,omitempty"`
+	CustomerEmail         string                                `json:"customerEmail,omitempty"`
+	Amount                string                                `json:"amount"` // String decimal e.g. "10000.00"
+	Currency              string                                `json:"currency"`
+	AccountID             string                                `json:"accountId,omitempty"`
+	AllowedPaymentMethods []string                              `json:"allowedPaymentMethods,omitempty"`
+	SplitRequest          *TokenizedCardChargeOrderSplitRequest `json:"splitRequest,omitempty"`
+}
+
+type CreateCheckoutOrderResponse struct {
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Data        struct {
+		CheckoutLink   string `json:"checkoutLink"`
+		OrderReference string `json:"orderReference"`
+	} `json:"data"`
 }
 
 type BankLookupRequest struct {
@@ -84,7 +115,7 @@ type TransferResponse struct {
 }
 
 type TransactionResult struct {
-	TransactionID string `json:"transactionId"`
+	TransactionID string `json:"id"`
 	MerchantTxRef string `json:"merchantTxRef,omitempty"`
 	Status        any    `json:"status"`
 	ResponseCode  string `json:"responseCode,omitempty"`
@@ -92,11 +123,11 @@ type TransactionResult struct {
 }
 
 type CreateVirtualAccountRequest struct {
-	AccountID   string `json:"accountId,omitempty"`
-	AccountRef  string `json:"accountRef"`
-	AccountName string `json:"accountName"`
-	ExpiryDate  string `json:"expiryDate,omitempty"`
-	Amount      int64  `json:"amount,omitempty"`
+	AccountRef     string  `json:"accountRef"`
+	AccountName    string  `json:"accountName"`
+	Currency       string  `json:"currency"`
+	ExpiryDate     string  `json:"expiryDate,omitempty"`
+	ExpectedAmount float64 `json:"expectedAmount,omitempty"`
 }
 
 type VirtualAccountResponse struct {
@@ -107,7 +138,7 @@ type VirtualAccount struct {
 	AccountID      string `json:"accountId,omitempty"`
 	AccountRef     string `json:"accountRef"`
 	AccountName    string `json:"accountName"`
-	AccountNumber  string `json:"accountNumber"`
+	AccountNumber  string `json:"bankAccountNumber"`
 	BankName       string `json:"bankName"`
 	BankCode       string `json:"bankCode,omitempty"`
 	ExpiryDate     string `json:"expiryDate,omitempty"`

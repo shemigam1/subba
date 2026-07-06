@@ -87,7 +87,9 @@ func (h *Handler) Signup(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusCreated, dto.FromTenant(t))
+	out := dto.FromTenant(t)
+	out.Token = sid
+	render.JSON(c, http.StatusCreated, out)
 }
 
 func (h *Handler) Login(c *gin.Context) {
@@ -111,7 +113,9 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	sid, _ := h.sessions.Create(c.Request.Context(), "tenant", t.ID.String(), sessionTTL)
 	h.setSession(c, sid)
-	render.JSON(c, http.StatusOK, dto.FromTenant(t))
+	out := dto.FromTenant(t)
+	out.Token = sid
+	render.JSON(c, http.StatusOK, out)
 }
 
 func (h *Handler) Logout(c *gin.Context) {
@@ -324,6 +328,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 	vaRes, err := h.nomba.CreateVirtualAccount(c.Request.Context(), h.cfg.NombaSubAccountID, nomba.CreateVirtualAccountRequest{
 		AccountRef:  accountRef,
 		AccountName: name,
+		Currency:    "NGN",
 	})
 	if err != nil {
 		h.log.Error().Err(err).Msg("failed to provision nomba virtual account")

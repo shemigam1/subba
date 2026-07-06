@@ -26,7 +26,7 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		c.baseURL+"/v1/tokenized-card/charge", bytes.NewReader(body))
+		c.baseURL+"/v1/checkout/tokenized-card-payment", bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("nomba charge: build request: %w", err)
 	}
@@ -52,10 +52,49 @@ func (c *Client) Charge(ctx context.Context, req TokenizedCardChargeRequest) (*C
 	return &out, nil
 }
 
+// CreateCheckoutOrder creates an online checkout link for a customer to pay.
+func (c *Client) CreateCheckoutOrder(ctx context.Context, req CreateCheckoutOrderRequest) (*CreateCheckoutOrderResponse, error) {
+	token, err := c.getToken(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: get token: %w", err)
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.baseURL+"/v1/checkout/order", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: build request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("accountId", c.accountID)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("nomba checkout order: http: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("nomba checkout order: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var out CreateCheckoutOrderResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("nomba checkout order: decode response: %w", err)
+	}
+	return &out, nil
+}
+
 // Transfer initiates a bank transfer from the merchant's Nomba balance.
 // merchantTxRef serves as Nomba's idempotency key — use event.RequestID
 // (prefixed to stay unique across payout types) so retries are safe.
-func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*TransferResponse, error) {
+func (c *Client) Transfer(ctx context.Context, subAccountID string, req BankTransferRequest) (*TransferResponse, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("nomba transfer: get token: %w", err)
@@ -66,7 +105,7 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 		return nil, fmt.Errorf("nomba transfer: marshal request: %w", err)
 	}
 
-	url := c.baseURL + "/v1/transfers/bank"
+	url := c.baseURL + "/v2/transfers/bank/" + subAccountID
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -95,16 +134,15 @@ func (c *Client) Transfer(ctx context.Context, req BankTransferRequest) (*Transf
 }
 
 // GetTransferStatus polls for the outcome of a previously initiated transfer.
-// Use this when Transfer returns a non-final status so the payout handler can
-// decide whether to retry or mark the record as failed.
-func (c *Client) GetTransferStatus(ctx context.Context, merchantTxRef string) (*TransferResponse, error) {
+// Nomba requery uses sessionId, not merchantTxRef.
+func (c *Client) GetTransferStatus(ctx context.Context, sessionId string) (*TransferResponse, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("nomba get transfer status: get token: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.baseURL+"/v1/transfers/"+merchantTxRef, nil)
+		c.baseURL+"/v1/transactions/requery/"+sessionId, nil)
 	if err != nil {
 		return nil, fmt.Errorf("nomba get transfer status: build request: %w", err)
 	}
@@ -118,7 +156,7 @@ func (c *Client) GetTransferStatus(ctx context.Context, merchantTxRef string) (*
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("nomba get transfer status: ref %q not found", merchantTxRef)
+		return nil, fmt.Errorf("nomba get transfer status: session id %q not found", sessionId)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("nomba get transfer status: status %d", resp.StatusCode)
@@ -141,13 +179,12 @@ func (c *Client) CreateVirtualAccount(ctx context.Context, subAccountID string, 
 		return nil, fmt.Errorf("nomba create virtual account: get token: %w", err)
 	}
 
-	req.AccountID = subAccountID
+	url := c.baseURL + "/v1/accounts/virtual/" + subAccountID
+	
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("nomba create virtual account: marshal request: %w", err)
 	}
-
-	url := c.baseURL + "/v1/virtual-accounts/sub-account"
 	
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
