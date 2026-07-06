@@ -13,6 +13,7 @@ type RawPayload struct {
 type RawData struct {
 	Merchant    RawMerchant    `json:"merchant"`
 	Transaction RawTransaction `json:"transaction"`
+	Customer    RawCustomer    `json:"customer"`
 }
 
 type RawMerchant struct {
@@ -29,12 +30,29 @@ type RawTransaction struct {
 	Fee           float64 `json:"fee,omitempty"`
 	Time          string  `json:"time"`
 	ResponseCode  string  `json:"responseCode,omitempty"`
+	Narration     string  `json:"narration,omitempty"`
+	SessionID     string  `json:"sessionId,omitempty"`
+	OriginatingFrom string `json:"originatingFrom,omitempty"`
 
 	// AliasAccountNumber is the virtual account number that received the
 	// funds.
 	AliasAccountNumber string `json:"aliasAccountNumber,omitempty"`
 
+	// AliasAccountName is the display name associated with the virtual account.
+	AliasAccountName string `json:"aliasAccountName,omitempty"`
+
 	// AliasAccountReference is the custom tag we provided when creating the Virtual Account.
 	// We format this as "{tenantID}:{customerID}" to instantly route payments.
 	AliasAccountReference string `json:"aliasAccountReference,omitempty"`
+
+	// AliasAccountType distinguishes VIRTUAL from other account types.
+	AliasAccountType string `json:"aliasAccountType,omitempty"`
+}
+
+// RawCustomer represents the sender/payer details from a Nomba webhook.
+type RawCustomer struct {
+	BankCode      string `json:"bankCode,omitempty"`
+	SenderName    string `json:"senderName,omitempty"`
+	BankName      string `json:"bankName,omitempty"`
+	AccountNumber string `json:"accountNumber,omitempty"`
 }

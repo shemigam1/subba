@@ -9,7 +9,8 @@ The core infrastructure for the Nomba subscription engine is live:
 - Core routes for Tenants (Dashboard) and Customers (Portal).
 - Added PATCH /customers/:id to close the final loop.
 - **Virtual Account Provisioning:** Customers synchronously receive Nomba Virtual Accounts (tagged with custom `{tenantID}:{customerID}` `accountRef` markers).
-- **O(1) Webhook Processing:** Webhook handlers immediately parse the incoming `accountRef` to bypass DB lookups completely. Webhook signature verification uses the correct, official `HMAC-SHA256` raw-body hex digest algorithm.
+- **O(1) Webhook Processing:** Webhook handlers immediately parse the incoming `accountRef` to bypass DB lookups completely.
+- **Proprietary Webhook Signature Verification:** Nomba does NOT sign the raw HTTP body. Instead, they extract 8 specific fields from the parsed JSON payload (`eventType`, `requestId`, `userId`, `walletId`, `transactionId`, `type`, `time`, `responseCode`), concatenate them with `:` separators, append the `nomba-timestamp` HTTP header, HMAC-SHA256 the result with the webhook secret, and Base64 encode it. Our `nomba.Verify()` function implements this exact algorithm.
 - **Scheduler Process:** A cron-driven sweep service running in Go that publishes renewal events to RabbitMQ.
 
 ### Frontend (Next.js App Router)

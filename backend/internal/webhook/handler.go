@@ -11,7 +11,7 @@ import (
 	"github.com/shamigam1/subba/internal/nomba"
 )
 
-// Publisher publishes a broker WEvent under a routing key.
+// Publisher publishes a broker Event under a routing key.
 type Publisher interface {
 	Publish(ctx context.Context, routingKey string, event broker.Event) error
 }
@@ -29,11 +29,17 @@ type Handler struct {
 }
 
 // ServeHTTP handles POST /webhooks/nomba.
+//
+// IMPORTANT: Nomba uses a proprietary HMAC signature algorithm. They do NOT
+// sign the raw HTTP body. Instead, they extract 8 specific fields from the
+// parsed JSON, concatenate them with colons, append the nomba-timestamp
+// header value, then HMAC-SHA256 + Base64 encode the result.
+//
+// This means we MUST parse the JSON body BEFORE we can verify the signature.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// 1. Read the raw body — needed for signature verification before we
-	// trust anything in it.
+	// 1. Read the raw body.
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: failed to read body")
@@ -42,15 +48,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// 2. Verify the signature before parsing further.
-	signature := r.Header.Get("nomba-signature")
-	if err := nomba.Verify(body, signature, h.WebhookSecret); err != nil {
-		h.Logger.Warn().Err(err).Msg("webhook: signature verification failed")
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
-		return
-	}
-
-	// 3. Parse the payload now that it's verified.
+	// 2. Parse the payload FIRST — Nomba's signature verification requires
+	//    extracting specific fields from the parsed payload, not hashing the
+	//    raw body.
 	var raw RawPayload
 	if err := json.Unmarshal(body, &raw); err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: failed to parse payload")
@@ -58,7 +58,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Parse the TenantID and CustomerID from the custom AliasAccountReference tag.
+	// 3. Extract the nomba-timestamp header and the signature.
+	//    HTTP header names are case-insensitive; Go canonicalizes them, but
+	//    Nomba sends lowercase keys so we use the canonical getter.
+	signature := r.Header.Get("nomba-signature")
+	timestamp := r.Header.Get("nomba-timestamp")
+
+	// 4. Verify the signature using Nomba's proprietary algorithm:
+	//    HMAC-SHA256(eventType:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp)
+	//    then Base64 encode.
+	verifyParams := nomba.VerifyParams{
+		EventType:       raw.EventType,
+		RequestID:       raw.RequestID,
+		UserID:          raw.Data.Merchant.UserID,
+		WalletID:        raw.Data.Merchant.WalletID,
+		TransactionID:   raw.Data.Transaction.TransactionID,
+		TransactionType: raw.Data.Transaction.Type,
+		TransactionTime: raw.Data.Transaction.Time,
+		ResponseCode:    raw.Data.Transaction.ResponseCode,
+		Timestamp:       timestamp,
+	}
+
+	if err := nomba.Verify(verifyParams, signature, h.WebhookSecret); err != nil {
+		h.Logger.Warn().Err(err).Msg("webhook: signature verification failed")
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// 5. Parse the TenantID and CustomerID from the custom AliasAccountReference tag.
 	// As per the Nomba Slack advisory, we tag virtual accounts with "{tenant_id}:{customer_id}".
 	ref := raw.Data.Transaction.AliasAccountReference
 	if ref == "" {
@@ -66,7 +93,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unrecognized payload shape", http.StatusUnprocessableEntity)
 		return
 	}
-	
+
 	// Format is "tenantID:customerID"
 	var tenantID, customerID string
 	for i, c := range ref {
@@ -82,7 +109,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5. Translate to our internal Event shape.
+	// 6. Translate to our internal Event shape.
 	event, rk, err := translate(raw, tenantID)
 	if err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: translate failed")
