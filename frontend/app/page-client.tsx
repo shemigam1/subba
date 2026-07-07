@@ -18,21 +18,40 @@ import { SubbaLogo } from "@/components/brand/subba-logo";
 export function LandingClient() {
   return (
     <div className="flex min-h-dvh flex-col bg-slate-50 text-slate-900 relative overflow-hidden">
-      {/* Floating Background Icons */}
+      {/* Floating Background Icons & Doodles */}
       <motion.div
-        className="absolute top-20 left-10 text-brand-200/50"
+        className="absolute top-20 left-10 text-slate-300/20"
         animate={{ y: [0, 20, 0], rotate: [0, 10, -10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Activity size={120} />
+        <Activity size={80} />
       </motion.div>
       <motion.div
-        className="absolute bottom-40 right-20 text-brand-200/50"
+        className="absolute bottom-40 right-20 text-slate-300/20"
         animate={{ y: [0, -30, 0], rotate: [0, -15, 15, 0] }}
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
       >
-        <Lock size={150} />
+        <Lock size={100} />
       </motion.div>
+
+      {/* Doodles */}
+      <motion.svg
+        className="absolute top-1/4 right-32 text-slate-200/30 w-32 h-32"
+        viewBox="0 0 100 100"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        animate={{ x: [0, -20, 0], y: [0, 10, 0] }}
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <path d="M10 50 Q 25 25 50 50 T 90 50" />
+        <path d="M10 60 Q 25 35 50 60 T 90 60" />
+      </motion.svg>
+      <motion.div
+        className="absolute bottom-20 left-1/4 w-16 h-16 border-4 border-slate-200/30 rounded-full"
+        animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
+        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+      />
 
       {/* Nav */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5 relative z-10">
@@ -243,6 +262,20 @@ console.log(sub.status); // "active"`}
           ))}
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-200 bg-white relative z-10">
+        <div className="mx-auto w-full max-w-6xl px-6 py-12 md:flex md:items-center md:justify-between">
+          <div className="flex justify-center md:justify-start">
+            <SubbaLogo size="sm" showText={true} />
+          </div>
+          <div className="mt-8 md:mt-0">
+            <p className="text-center text-sm leading-5 text-slate-500">
+              &copy; {new Date().getFullYear()} Subba Inc. All rights reserved.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
