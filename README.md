@@ -28,6 +28,11 @@ Implementing recurring billing at scale is notoriously difficult. Developers are
 
 **Subba** provides a plug-and-play, enterprise-grade subscriptions engine. We lean heavily into Nomba's African-first primitives: creating a "Cardless Subscription Moat" (using Nomba Virtual Accounts for auto-renewing subscriptions via bank transfers) and handling tokenized card infrastructure seamlessly.
 
+## Live Deployments
+
+- **Live Frontend (Vercel):** https://subba-theta.vercel.app
+- **Live API Endpoint (Cloudflare Tunnel):** https://asbestos-dale-serve-checks.trycloudflare.com/v1
+
 ## Key Features
 
 - **Event-Driven Core:** A RabbitMQ Topic Exchange fanout topology that processes Nomba webhooks asynchronously, ensuring that invoicing and state management are strictly decoupled.
