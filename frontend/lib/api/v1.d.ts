@@ -1583,6 +1583,8 @@ export interface components {
             }[];
         };
         Settings: {
+            business_name?: string;
+            support_email?: string | null;
             nomba_account_id?: string | null;
             /** @description Revenue-split target */
             nomba_subaccount_id?: string | null;
@@ -1593,6 +1595,9 @@ export interface components {
             webhook_secret_set?: boolean;
         };
         SettingsInput: {
+            business_name?: string;
+            support_email?: string;
+            webhook_url?: string;
             nomba_account_id?: string;
             nomba_subaccount_id?: string;
             nomba_client_id?: string;
@@ -1690,3 +1695,4 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export type operations = Record<string, never>;
+
