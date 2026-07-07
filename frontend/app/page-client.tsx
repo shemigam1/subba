@@ -13,6 +13,7 @@ import {
   Split,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SubbaLogo } from "@/components/brand/subba-logo";
 
 export function LandingClient() {
   return (
@@ -35,9 +36,7 @@ export function LandingClient() {
 
       {/* Nav */}
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5 relative z-10">
-        <p className="text-xl font-bold tracking-tight">
-          subba<span className="text-brand-600">.</span>
-        </p>
+        <SubbaLogo size="sm" showText={true} />
         <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 sm:flex">
           <a href="#features" className="hover:text-slate-900">
             Features
