@@ -3,6 +3,9 @@
 Event-driven recurring-billing engine on Nomba payment primitives. Go + PostgreSQL
 (RLS) + Redis + RabbitMQ.
 
+## Live Deployment
+- **Live API Endpoint:** https://asbestos-dale-serve-checks.trycloudflare.com/v1
+
 ## Layout
 
 ```

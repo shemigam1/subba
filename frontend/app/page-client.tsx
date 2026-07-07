@@ -29,7 +29,12 @@ export function LandingClient() {
       <motion.div
         className="absolute bottom-40 right-20 text-slate-300/20"
         animate={{ y: [0, -30, 0], rotate: [0, -15, 15, 0] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        transition={{
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 1,
+        }}
       >
         <Lock size={100} />
       </motion.div>
@@ -50,7 +55,12 @@ export function LandingClient() {
       <motion.div
         className="absolute bottom-20 left-1/4 w-16 h-16 border-4 border-slate-200/30 rounded-full"
         animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.1, 0.3] }}
-        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+        transition={{
+          duration: 5,
+          repeat: Infinity,
+          ease: "easeInOut",
+          delay: 2,
+        }}
       />
 
       {/* Nav */}
@@ -63,7 +73,12 @@ export function LandingClient() {
           <a href="#how-it-works" className="hover:text-slate-900">
             How it works
           </a>
-          <a href="/openapi.yaml" target="_blank" rel="noreferrer" className="hover:text-slate-900">
+          <a
+            href="/openapi.yaml"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-slate-900"
+          >
             API Docs
           </a>
           <Link href="/pay/access" className="hover:text-slate-900">
@@ -83,7 +98,10 @@ export function LandingClient() {
           transition={{ duration: 0.6 }}
         >
           <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand-600" aria-hidden />
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-brand-600"
+              aria-hidden
+            />
             Built on Nomba payment rails
           </p>
           <h1 className="mt-5 text-5xl font-extrabold leading-tight tracking-tight sm:text-6xl text-slate-900">
@@ -95,7 +113,11 @@ export function LandingClient() {
             fault-tolerant billing pipeline. Naira-native, mobile-first.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="bg-brand-600 hover:bg-brand-700">
+            <Button
+              asChild
+              size="lg"
+              className="bg-brand-600 hover:bg-brand-700"
+            >
               <Link href="/signup">
                 Start billing
                 <ArrowRight className="h-4 w-4 ml-2" aria-hidden />
@@ -117,10 +139,14 @@ export function LandingClient() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-slate-500 font-medium">Premium Membership</p>
+                <p className="text-sm text-slate-500 font-medium">
+                  Premium Membership
+                </p>
                 <p className="mt-1 text-4xl font-bold tabular-nums tracking-tight text-slate-900">
                   ₦15,000
-                  <span className="text-base font-normal text-slate-500">/mo</span>
+                  <span className="text-base font-normal text-slate-500">
+                    /mo
+                  </span>
                 </p>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
@@ -162,7 +188,9 @@ export function LandingClient() {
               Developer-first API
             </h2>
             <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-              Integrate Subba into your product in minutes. Create plans, manage customers, and provision subscriptions with a single API call. We handle the webhooks, retries, and edge cases.
+              Integrate Subba into your product in minutes. Create plans, manage
+              customers, and provision subscriptions with a single API call. We
+              handle the webhooks, retries, and edge cases.
             </p>
             <ul className="space-y-4">
               {[
@@ -186,7 +214,7 @@ export function LandingClient() {
               </div>
               <pre className="text-slate-300">
                 <code className="language-js">
-{`const res = await fetch("https://api.subba.com/v1/subscriptions", {
+                  {`const res = await fetch("https://api.subba.com/v1/subscriptions", {
   method: "POST",
   headers: {
     "Authorization": "Bearer sk_test_...",
@@ -209,12 +237,20 @@ console.log(sub.status); // "active"`}
       </section>
 
       {/* Feature Grid */}
-      <section id="features" className="mx-auto w-full max-w-6xl px-6 py-24 relative z-10">
+      <section
+        id="features"
+        className="mx-auto w-full max-w-6xl px-6 py-24 relative z-10"
+      >
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Everything you need to scale</h2>
-          <p className="mt-4 text-lg text-slate-600">We abstracted away the hardest parts of recurring billing in emerging markets so you can focus on building your product.</p>
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Everything you need to scale
+          </h2>
+          <p className="mt-4 text-lg text-slate-600">
+            We abstracted away the hardest parts of recurring billing in
+            emerging markets so you can focus on building your product.
+          </p>
         </div>
-        
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {[
             {
@@ -265,7 +301,13 @@ console.log(sub.status); // "active"`}
           ))}
         </div>
       </section>
-
+      <iframe
+        src="https://sulky-kilogram-3bf.notion.site/ebd//396fc813516e80d8a5c4c620e5e00c97"
+        width="100%"
+        height="600"
+        frameBorder="0"
+        allowFullScreen
+      />
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white relative z-10">
         <div className="mx-auto w-full max-w-6xl px-6 py-12 md:flex md:items-center md:justify-between">
@@ -273,7 +315,12 @@ console.log(sub.status); // "active"`}
             <SubbaLogo size="sm" showText={true} />
           </div>
           <div className="mt-8 md:mt-0 flex flex-col md:flex-row items-center gap-4 md:gap-8">
-            <a href="/openapi.yaml" target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-900">
+            <a
+              href="/openapi.yaml"
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-medium text-slate-500 hover:text-slate-900"
+            >
               API Documentation
             </a>
             <p className="text-center text-sm leading-5 text-slate-500">
