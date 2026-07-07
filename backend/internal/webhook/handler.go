@@ -30,12 +30,8 @@ type Handler struct {
 
 // ServeHTTP handles POST /webhooks/nomba.
 //
-// IMPORTANT: Nomba uses a proprietary HMAC signature algorithm. They do NOT
-// sign the raw HTTP body. Instead, they extract 8 specific fields from the
-// parsed JSON, concatenate them with colons, append the nomba-timestamp
-// header value, then HMAC-SHA256 + Base64 encode the result.
-//
-// This means we MUST parse the JSON body BEFORE we can verify the signature.
+// IMPORTANT: Nomba uses standard HMAC signature verification on the raw HTTP body.
+// We MUST verify the signature BEFORE we parse the JSON payload.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -48,40 +44,21 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// 2. Parse the payload FIRST — Nomba's signature verification requires
-	//    extracting specific fields from the parsed payload, not hashing the
-	//    raw body.
+	// 2. Extract the nomba-signature header
+	signature := r.Header.Get("nomba-signature")
+
+	// 3. Verify the signature against the raw body BEFORE parsing
+	if err := nomba.Verify(body, signature, h.WebhookSecret); err != nil {
+		h.Logger.Warn().Err(err).Msg("webhook: signature verification failed")
+		http.Error(w, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// 4. Parse the payload
 	var raw RawPayload
 	if err := json.Unmarshal(body, &raw); err != nil {
 		h.Logger.Warn().Err(err).Msg("webhook: failed to parse payload")
 		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	// 3. Extract the nomba-timestamp header and the signature.
-	//    HTTP header names are case-insensitive; Go canonicalizes them, but
-	//    Nomba sends lowercase keys so we use the canonical getter.
-	signature := r.Header.Get("nomba-signature")
-	timestamp := r.Header.Get("nomba-timestamp")
-
-	// 4. Verify the signature using Nomba's proprietary algorithm:
-	//    HMAC-SHA256(eventType:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp)
-	//    then Base64 encode.
-	verifyParams := nomba.VerifyParams{
-		EventType:       raw.EventType,
-		RequestID:       raw.RequestID,
-		UserID:          raw.Data.Merchant.UserID,
-		WalletID:        raw.Data.Merchant.WalletID,
-		TransactionID:   raw.Data.Transaction.TransactionID,
-		TransactionType: raw.Data.Transaction.Type,
-		TransactionTime: raw.Data.Transaction.Time,
-		ResponseCode:    raw.Data.Transaction.ResponseCode,
-		Timestamp:       timestamp,
-	}
-
-	if err := nomba.Verify(verifyParams, signature, h.WebhookSecret); err != nil {
-		h.Logger.Warn().Err(err).Msg("webhook: signature verification failed")
-		http.Error(w, "invalid signature", http.StatusUnauthorized)
 		return
 	}
 
