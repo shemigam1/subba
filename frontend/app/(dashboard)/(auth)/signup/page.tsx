@@ -33,14 +33,18 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setError(null);
-    const { data: res, error } = await api.POST("/auth/signup", { body: data });
-    if (error) {
-      setError((error as { message?: string })?.message ?? "Could not create account.");
-      return;
+    try {
+      const { data: res, error } = await api.POST("/auth/signup", { body: data });
+      if (error) {
+        setError((error as { message?: string })?.message ?? "Could not create account.");
+        return;
+      }
+      const token = res?.token;
+      if (token) setTenantToken(token);
+      router.push("/overview");
+    } catch (err: any) {
+      setError(err.message || "Network error. Please check your connection or CORS settings.");
     }
-    const token = res?.token;
-    if (token) setTenantToken(token);
-    router.push("/overview");
   };
 
   return (

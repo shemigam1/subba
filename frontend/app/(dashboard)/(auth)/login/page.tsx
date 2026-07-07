@@ -32,14 +32,18 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setError(null);
-    const { data: res, error } = await api.POST("/auth/login", { body: data });
-    if (error) {
-      setError((error as { message?: string })?.message ?? "Invalid email or password.");
-      return;
+    try {
+      const { data: res, error } = await api.POST("/auth/login", { body: data });
+      if (error) {
+        setError((error as { message?: string })?.message ?? "Invalid email or password.");
+        return;
+      }
+      const token = res?.token;
+      if (token) setTenantToken(token);
+      router.push("/overview");
+    } catch (err: any) {
+      setError(err.message || "Network error. Please check your connection or CORS settings.");
     }
-    const token = res?.token;
-    if (token) setTenantToken(token);
-    router.push("/overview");
   };
 
   return (
