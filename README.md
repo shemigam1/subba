@@ -89,9 +89,9 @@ subba/
 
 Authentication is strictly isolated between the two user personas to prevent session bleeding:
 
-- **Merchants (Dashboard):** Use a `subba_session` httpOnly cookie. Authorized to manage plans, view customers, and generate portal links.
-- **Subscribers (Customer Portal):** Use a `subba_portal` httpOnly cookie (magic link authentication). Authorized *only* to view their own invoices, update payment methods, and cancel subscriptions.
-- **API Keys (Machine-to-Machine):** Dashboard users can generate Bearer tokens. Handled securely by hashing the token in the database.
+- **Merchants (Dashboard):** Use a Bearer token (`tenant_token`) passed in the `Authorization` header. This token is securely issued on login and stored in local storage, preventing third-party cookie blocking issues across domains. Authorized to manage plans, view customers, and generate portal links.
+- **Subscribers (Customer Portal):** Use a Bearer token (`portal_token`) passed in the `Authorization` header. Authorized *only* to view their own invoices, update payment methods, and cancel subscriptions via magic link access.
+- **API Keys (Machine-to-Machine):** Dashboard users can generate long-lived Bearer API keys. Handled securely by hashing the token in the database before storage.
 
 ## Setup & Installation
 
