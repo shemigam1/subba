@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { setTenantToken } from "@/lib/auth/token";
+import { SubbaLogo } from "@/components/brand/subba-logo";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address."),
@@ -32,29 +33,30 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormValues) => {
     setError(null);
-    const { data: res, error } = await api.POST("/auth/login", { body: data });
-    if (error) {
-      setError((error as { message?: string })?.message ?? "Invalid email or password.");
-      return;
+    try {
+      const { data: res, error } = await api.POST("/auth/login", { body: data });
+      if (error) {
+        setError((error as { message?: string })?.message ?? "Invalid email or password.");
+        return;
+      }
+      const token = res?.token;
+      if (token) setTenantToken(token);
+      router.push("/overview");
+    } catch (err: any) {
+      setError(err.message || "Network error. Please check your connection or CORS settings.");
     }
-    const token = res?.token;
-    if (token) setTenantToken(token);
-    router.push("/overview");
   };
 
   return (
     <div className="min-h-screen flex">
       {/* Left panel - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand-600 flex-col justify-center p-12 text-white">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-white rounded-sm" />
-            <span className="font-bold text-2xl tracking-tight">Subba</span>
-          </div>
-          <h1 className="text-4xl font-bold mb-6">
+      <div className="hidden lg:flex lg:w-1/2 bg-slate-50 flex-col justify-center items-center p-12 border-r border-slate-200">
+        <div className="max-w-md mx-auto text-center">
+          <SubbaLogo className="mb-12" />
+          <h1 className="text-4xl font-bold text-slate-900 mb-6">
             Smarter subscriptions for African businesses.
           </h1>
-          <p className="text-brand-50 text-lg">
+          <p className="text-slate-500 text-lg">
             Manage your recurring revenue, reduce churn, and offer cardless auto-renewals built natively on Nomba's rails.
           </p>
         </div>

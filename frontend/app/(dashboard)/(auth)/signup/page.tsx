@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { setTenantToken } from "@/lib/auth/token";
+import { SubbaLogo } from "@/components/brand/subba-logo";
 
 const signupSchema = z.object({
   name: z.string().min(2, "Company name must be at least 2 characters."),
@@ -33,29 +34,30 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setError(null);
-    const { data: res, error } = await api.POST("/auth/signup", { body: data });
-    if (error) {
-      setError((error as { message?: string })?.message ?? "Could not create account.");
-      return;
+    try {
+      const { data: res, error } = await api.POST("/auth/signup", { body: data });
+      if (error) {
+        setError((error as { message?: string })?.message ?? "Could not create account.");
+        return;
+      }
+      const token = res?.token;
+      if (token) setTenantToken(token);
+      router.push("/overview");
+    } catch (err: any) {
+      setError(err.message || "Network error. Please check your connection or CORS settings.");
     }
-    const token = res?.token;
-    if (token) setTenantToken(token);
-    router.push("/overview");
   };
 
   return (
     <div className="min-h-screen flex flex-row-reverse">
       {/* Left panel (visual right) - Branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-slate-900 flex-col justify-center p-12 text-white">
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-brand-600 rounded-sm" />
-            <span className="font-bold text-2xl tracking-tight">Subba</span>
-          </div>
-          <h1 className="text-4xl font-bold mb-6">
+      <div className="hidden lg:flex lg:w-1/2 bg-slate-50 flex-col justify-center items-center p-12 border-l border-slate-200">
+        <div className="max-w-md mx-auto text-center">
+          <SubbaLogo className="mb-12" />
+          <h1 className="text-4xl font-bold text-slate-900 mb-6">
             Get started with Subba.
           </h1>
-          <p className="text-slate-400 text-lg">
+          <p className="text-slate-500 text-lg">
             Set up your tenant account and start managing subscriptions across Africa with ease.
           </p>
         </div>

@@ -10,8 +10,23 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Subba",
-  description: "Nomba Subscriptions Engine",
+  title: {
+    template: "%s | Subba",
+    default: "Subba | Smarter subscriptions for African businesses",
+  },
+  description: "An event-driven, fault-tolerant recurring billing layer built natively on Nomba's payment primitives.",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_DASHBOARD_URL || "http://localhost:3000"),
+  openGraph: {
+    title: "Subba",
+    description: "Smarter subscriptions for African businesses.",
+    type: "website",
+    siteName: "Subba",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Subba",
+    description: "Smarter subscriptions for African businesses.",
+  },
 };
 
 export default function RootLayout({

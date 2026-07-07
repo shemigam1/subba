@@ -1,0 +1,865 @@
+openapi: 3.1.0
+info:
+  title: Subba API
+  version: 0.1.0-draft
+  description: >
+    Contract for the Subba subscriptions engine. Covers the Tenant Dashboard
+    (developer-facing) and the hosted Customer Portal (end-user). DRAFT — Dev B
+    owns this file; Dev A reviews. Freeze before heads-down work.
+
+
+    Conventions:
+      * Money is integer **minor units** (kobo). `amount_minor: 500000` = ₦5,000.
+      * Times are RFC 3339 UTC strings.
+      * Errors share the `Error` schema and carry `request_id` for log correlation.
+      * Tenant isolation is enforced server-side via Postgres RLS; clients never
+        pass a tenant id — it is derived from the session or API key.
+servers:
+  - url: https://api.subba.example/v1
+    description: Hosted MVP (set to the deployed URL)
+  - url: http://localhost:8080/v1
+    description: Local
+
+tags:
+  - name: Auth
+  - name: Plans
+  - name: Customers
+  - name: Subscriptions
+  - name: API Keys
+  - name: Analytics
+  - name: Settings
+  - name: Portal
+  - name: Webhooks
+
+security:
+  - cookieAuth: []
+  - apiKeyAuth: []
+
+paths:
+  # ----------------------------------------------------------------- Dashboard auth
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create a tenant account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupRequest' }
+      responses:
+        '201':
+          description: Created; sets the dashboard session cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: OK; sets the dashboard session cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out (clears session cookie)
+      responses:
+        '204': { description: No Content }
+  /me:
+    get:
+      tags: [Auth]
+      summary: Current tenant
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ----------------------------------------------------------------- Plans
+  /plans:
+    get:
+      tags: [Plans]
+      summary: List plans
+      parameters:
+        - { name: include_deleted, in: query, schema: { type: boolean, default: false } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Plan' }
+    post:
+      tags: [Plans]
+      summary: Create a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /plans/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Plans]
+      summary: Get a plan
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Plans]
+      summary: Update a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlanInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Plan' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Plans]
+      summary: Soft-delete a plan
+      responses:
+        '204': { description: No Content }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------------- Customers
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: Search name/email }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Customer' }
+                  next_cursor: { type: [string, 'null'] }
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /customers/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Customers]
+      summary: Get a customer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Customers]
+      summary: Update a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /customers/{id}/invoices:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Customers]
+      summary: List a customer's invoices
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+  /customers/{id}/portal-link:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Customers]
+      summary: Generate a portal access link for this customer (manual fallback)
+      description: >
+        Returns a single-use, short-lived link the tenant can distribute through
+        its own channel (WhatsApp/SMS), and is handy for demos. The primary path
+        is POST /portal/access-request, which emails the same kind of link via
+        Resend. Either way the portal exchanges the token via POST /portal/session.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalLink' }
+
+  # ----------------------------------------------------------------- Subscriptions
+  /subscriptions:
+    post:
+      tags: [Subscriptions]
+      summary: Subscribe a customer to a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer_id, plan_id]
+              properties:
+                customer_id: { type: string, format: uuid }
+                plan_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /subscriptions/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Subscriptions]
+      summary: Get a subscription
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /subscriptions/{id}/cancel:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Subscriptions]
+      summary: Cancel a subscription
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                at_period_end:
+                  type: boolean
+                  default: true
+                  description: Cancel at period end (true) or immediately (false).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------------- API keys
+  /api-keys:
+    get:
+      tags: [API Keys]
+      summary: List API keys (masked)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ApiKey' }
+    post:
+      tags: [API Keys]
+      summary: Create an API key (full secret returned ONCE)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+      responses:
+        '201':
+          description: Created. `secret` is shown only in this response.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiKeyCreated' }
+  /api-keys/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    delete:
+      tags: [API Keys]
+      summary: Revoke an API key
+      responses:
+        '204': { description: No Content }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------------- Analytics & settings
+  /analytics/overview:
+    get:
+      tags: [Analytics]
+      summary: Dashboard overview metrics
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsOverview' }
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get tenant settings (secrets masked)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+    patch:
+      tags: [Settings]
+      summary: Update tenant settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SettingsInput' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Settings' }
+
+  # ----------------------------------------------------------------- Customer Portal
+  /portal/access-request:
+    post:
+      tags: [Portal]
+      summary: Request a magic-link email to access the portal
+      description: >
+        Primary access path. Emails a single-use, 15-minute magic link (via Resend)
+        to the customer. ENUMERATION-SAFE: always returns 202 regardless of whether
+        the email is registered, so it cannot be used to probe for accounts.
+        Rate-limited per email and per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, email]
+              properties:
+                tenant_id: { type: string, format: uuid, description: Which tenant's portal (the hosted portal is per-tenant) }
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: Accepted. "If an account exists, a link has been sent."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /portal/session:
+    post:
+      tags: [Portal]
+      summary: Exchange an access token for a portal session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: From the tenant-distributed portal link }
+      responses:
+        '200':
+          description: OK; sets the portal session cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalContext' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /portal/logout:
+    post:
+      tags: [Portal]
+      summary: Log out of the portal (revokes the session, clears the cookie)
+      security: []
+      responses:
+        '204': { description: No Content }
+  /portal/me:
+    get:
+      tags: [Portal]
+      summary: Current portal context (customer + tenant branding)
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PortalContext' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /portal/subscription:
+    get:
+      tags: [Portal]
+      summary: The signed-in customer's subscription
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /portal/subscription/cancel:
+    post:
+      tags: [Portal]
+      summary: Cancel the customer's own subscription
+      security: [{ portalAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                at_period_end: { type: boolean, default: true }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Subscription' }
+  /portal/invoices:
+    get:
+      tags: [Portal]
+      summary: The customer's invoice history
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Invoice' }
+  /portal/invoices/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Portal]
+      summary: Invoice detail with line items
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /portal/invoices/{id}/checkout:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Portal]
+      summary: Create a Nomba hosted-checkout link to pay this invoice by card
+      description: >
+        Creates a Nomba checkout order (with card tokenization enabled) for an
+        unpaid invoice and returns the hosted payment page URL. 400 if the
+        invoice is already paid; 404 if it isn't the caller's invoice.
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [checkoutLink]
+                properties:
+                  checkoutLink: { type: string, format: uri, description: Nomba hosted payment page }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /portal/payment-method:
+    get:
+      tags: [Portal]
+      summary: Card on file + cardless virtual account
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentMethods' }
+  /portal/payment-method/card:
+    post:
+      tags: [Portal]
+      summary: Save a tokenized card (from the Nomba tokenization widget)
+      description: >
+        The portal collects card details with Nomba's hosted tokenization on the
+        client; only the resulting token reference reaches this endpoint. Raw PAN
+        never touches Subba.
+      security: [{ portalAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nomba_token_key]
+              properties:
+                nomba_token_key: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardOnFile' }
+  /portal/virtual-account:
+    get:
+      tags: [Portal]
+      summary: Bank-transfer (cardless) account details for renewal — the moat
+      security: [{ portalAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VirtualAccount' }
+
+  # ----------------------------------------------------------------- Webhooks (Dev A owns)
+  /webhooks/nomba:
+    post:
+      tags: [Webhooks]
+      summary: Nomba webhook ingress (HMAC-SHA256 verified, then published)
+      description: >
+        Documented for completeness; implemented by Track A. Verifies the
+        signature, publishes to the topic exchange with publisher confirms, and
+        returns 200 only after the broker confirms.
+      security: []
+      parameters:
+        - { name: x-nomba-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '200': { description: Accepted and published }
+        '401': { description: Invalid signature }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: subba_session
+      description: Dashboard session (httpOnly), set by /auth/login or /auth/signup.
+    apiKeyAuth:
+      type: http
+      scheme: bearer
+      description: Tenant API key for server-to-server calls (Bearer <key>).
+    portalAuth:
+      type: apiKey
+      in: cookie
+      name: subba_portal
+      description: Customer portal session (httpOnly), set by /portal/session.
+
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Not found
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Already exists
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Invalid input
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [error, request_id]
+      properties:
+        error: { type: string, description: Machine-readable code, e.g. "not_found" }
+        message: { type: string, description: Human-readable detail }
+        request_id: { type: string, description: Correlation id; matches server logs }
+        fields:
+          type: object
+          additionalProperties: { type: string }
+          description: Per-field validation messages (422 only)
+
+    Money:
+      type: object
+      required: [amount_minor, currency]
+      properties:
+        amount_minor: { type: integer, format: int64, description: Minor units (kobo) }
+        currency: { type: string, default: NGN, examples: [NGN] }
+
+    SignupRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    Tenant:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        created_at: { type: string, format: date-time }
+        # Bearer session token — present only on signup/login responses (for
+        # cross-site SPAs that can't use the session cookie). Absent on /me.
+        token: { type: string }
+
+    Plan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        amount_minor: { type: integer, format: int64 }
+        currency: { type: string, default: NGN }
+        interval: { type: string, enum: [month, year] }
+        deleted_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+    PlanInput:
+      type: object
+      required: [name, amount_minor, interval]
+      properties:
+        name: { type: string }
+        amount_minor: { type: integer, format: int64, minimum: 0 }
+        currency: { type: string, default: NGN }
+        interval: { type: string, enum: [month, year] }
+
+    Customer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: [string, 'null'] }
+        email: { type: string, format: email }
+        has_card_on_file: { type: boolean }
+        created_at: { type: string, format: date-time }
+    CustomerInput:
+      type: object
+      required: [email]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+
+    Subscription:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
+        plan: { $ref: '#/components/schemas/Plan' }
+        status: { type: string, enum: [incomplete, active, past_due, canceled, unpaid] }
+        current_period_start: { type: [string, 'null'], format: date-time }
+        current_period_end: { type: [string, 'null'], format: date-time }
+        cancel_at_period_end: { type: boolean }
+        canceled_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        subscription_id: { type: [string, 'null'], format: uuid }
+        amount_minor: { type: integer, format: int64 }
+        currency: { type: string, default: NGN }
+        status: { type: string, enum: [draft, open, paid, void, uncollectible] }
+        period_start: { type: [string, 'null'], format: date-time }
+        period_end: { type: [string, 'null'], format: date-time }
+        issued_at: { type: string, format: date-time }
+    InvoiceItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        description: { type: string }
+        amount_minor: { type: integer, format: int64, description: May be negative (proration credit) }
+        quantity: { type: integer }
+        period_start: { type: [string, 'null'], format: date-time }
+        period_end: { type: [string, 'null'], format: date-time }
+    InvoiceDetail:
+      allOf:
+        - $ref: '#/components/schemas/Invoice'
+        - type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/InvoiceItem' }
+
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: [string, 'null'] }
+        masked: { type: string, examples: ['sk_live_…a1b2'] }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, 'null'], format: date-time }
+    ApiKeyCreated:
+      allOf:
+        - $ref: '#/components/schemas/ApiKey'
+        - type: object
+          properties:
+            secret:
+              type: string
+              description: Full key, returned ONCE. Store it now; not retrievable later.
+
+    AnalyticsOverview:
+      type: object
+      properties:
+        mrr: { $ref: '#/components/schemas/Money' }
+        active_subscriptions: { type: integer }
+        payments_today: { type: integer }
+        failed_payments: { type: integer }
+        dlq_depth: { type: integer, description: Dead-letter depth; top fault signal }
+        revenue_series:
+          type: array
+          description: Daily revenue, last 30 days
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              amount_minor: { type: integer, format: int64 }
+
+    Settings:
+      type: object
+      properties:
+        business_name: { type: string }
+        support_email: { type: [string, 'null'] }
+        nomba_account_id: { type: [string, 'null'] }
+        nomba_subaccount_id: { type: [string, 'null'], description: Revenue-split target }
+        nomba_client_id: { type: [string, 'null'] }
+        nomba_client_secret_set: { type: boolean, description: Whether a secret is stored (never returned) }
+        webhook_url: { type: [string, 'null'] }
+        webhook_secret_set: { type: boolean }
+    SettingsInput:
+      type: object
+      properties:
+        business_name: { type: string }
+        support_email: { type: string }
+        webhook_url: { type: string }
+        nomba_account_id: { type: string }
+        nomba_subaccount_id: { type: string }
+        nomba_client_id: { type: string }
+        nomba_client_secret: { type: string }
+
+    PortalLink:
+      type: object
+      properties:
+        url: { type: string, format: uri, description: Send this to the customer }
+        token: { type: string }
+        expires_at: { type: string, format: date-time }
+
+    PortalContext:
+      type: object
+      description: Everything the portal shell needs after session exchange.
+      properties:
+        customer: { $ref: '#/components/schemas/Customer' }
+        tenant_branding:
+          type: object
+          properties:
+            tenant_name: { type: string }
+            logo_url: { type: [string, 'null'], format: uri }
+        # Bearer session token — present only on the /portal/session response.
+        token: { type: string }
+
+    PaymentMethods:
+      type: object
+      properties:
+        card: { oneOf: [ { $ref: '#/components/schemas/CardOnFile' }, { type: 'null' } ] }
+        virtual_account: { $ref: '#/components/schemas/VirtualAccount' }
+    CardOnFile:
+      type: object
+      properties:
+        brand: { type: string, examples: [visa, mastercard, verve] }
+        last4: { type: string }
+        exp_month: { type: integer }
+        exp_year: { type: integer }
+        expired: { type: boolean }
+    VirtualAccount:
+      type: object
+      description: Cardless renewal target — the customer transfers here to renew.
+      properties:
+        bank_name: { type: string }
+        account_number: { type: string }
+        account_name: { type: string }
+        amount_due: { $ref: '#/components/schemas/Money' }
+
