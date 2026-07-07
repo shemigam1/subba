@@ -14,7 +14,7 @@ import (
 const createTenant = `-- name: CreateTenant :one
 INSERT INTO tenants (name, email, password_hash)
 VALUES ($1, $2, $3)
-RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret
+RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret, support_email
 `
 
 type CreateTenantParams struct {
@@ -40,12 +40,13 @@ func (q *Queries) CreateTenant(ctx context.Context, arg CreateTenantParams) (Ten
 		&i.NombaSubaccountID,
 		&i.WebhookUrl,
 		&i.WebhookSecret,
+		&i.SupportEmail,
 	)
 	return i, err
 }
 
 const getTenantByEmail = `-- name: GetTenantByEmail :one
-SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret FROM tenants WHERE email = $1
+SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret, support_email FROM tenants WHERE email = $1
 `
 
 func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, error) {
@@ -65,13 +66,14 @@ func (q *Queries) GetTenantByEmail(ctx context.Context, email string) (Tenant, e
 		&i.NombaSubaccountID,
 		&i.WebhookUrl,
 		&i.WebhookSecret,
+		&i.SupportEmail,
 	)
 	return i, err
 }
 
 const getTenantByID = `-- name: GetTenantByID :one
 
-SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret FROM tenants WHERE id = $1
+SELECT id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret, support_email FROM tenants WHERE id = $1
 `
 
 // Auth lookups run on the admin pool (pre-session, RLS-bypassing); everything else
@@ -93,22 +95,29 @@ func (q *Queries) GetTenantByID(ctx context.Context, id uuid.UUID) (Tenant, erro
 		&i.NombaSubaccountID,
 		&i.WebhookUrl,
 		&i.WebhookSecret,
+		&i.SupportEmail,
 	)
 	return i, err
 }
 
 const updateTenantSettings = `-- name: UpdateTenantSettings :one
 UPDATE tenants SET
-    nomba_account_id    = COALESCE($2, nomba_account_id),
-    nomba_subaccount_id = COALESCE($3, nomba_subaccount_id),
-    nomba_client_id     = COALESCE($4, nomba_client_id),
-    nomba_client_secret = COALESCE($5, nomba_client_secret)
+    name                = COALESCE($2, name),
+    support_email       = COALESCE($3, support_email),
+    webhook_url         = COALESCE($4, webhook_url),
+    nomba_account_id    = COALESCE($5, nomba_account_id),
+    nomba_subaccount_id = COALESCE($6, nomba_subaccount_id),
+    nomba_client_id     = COALESCE($7, nomba_client_id),
+    nomba_client_secret = COALESCE($8, nomba_client_secret)
 WHERE id = $1
-RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret
+RETURNING id, name, email, nomba_account_id, nomba_client_id, nomba_client_secret, api_key_hash, created_at, updated_at, password_hash, nomba_subaccount_id, webhook_url, webhook_secret, support_email
 `
 
 type UpdateTenantSettingsParams struct {
 	ID                uuid.UUID `json:"id"`
+	BusinessName      *string   `json:"business_name"`
+	SupportEmail      *string   `json:"support_email"`
+	WebhookUrl        *string   `json:"webhook_url"`
 	NombaAccountID    *string   `json:"nomba_account_id"`
 	NombaSubaccountID *string   `json:"nomba_subaccount_id"`
 	NombaClientID     *string   `json:"nomba_client_id"`
@@ -118,6 +127,9 @@ type UpdateTenantSettingsParams struct {
 func (q *Queries) UpdateTenantSettings(ctx context.Context, arg UpdateTenantSettingsParams) (Tenant, error) {
 	row := q.db.QueryRow(ctx, updateTenantSettings,
 		arg.ID,
+		arg.BusinessName,
+		arg.SupportEmail,
+		arg.WebhookUrl,
 		arg.NombaAccountID,
 		arg.NombaSubaccountID,
 		arg.NombaClientID,
@@ -138,6 +150,7 @@ func (q *Queries) UpdateTenantSettings(ctx context.Context, arg UpdateTenantSett
 		&i.NombaSubaccountID,
 		&i.WebhookUrl,
 		&i.WebhookSecret,
+		&i.SupportEmail,
 	)
 	return i, err
 }

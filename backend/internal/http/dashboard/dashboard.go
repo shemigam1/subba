@@ -5,6 +5,9 @@ package dashboard
 import (
 	"errors"
 	"net/http"
+	"net/mail"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -318,7 +321,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 	if req.Name != nil && *req.Name != "" {
 		name = *req.Name
 	}
-	
+
 	// Skip virtual-account provisioning when no Nomba client is configured (e.g. tests).
 	if h.nomba == nil {
 		render.JSON(c, http.StatusCreated, dto.FromCustomer(cust))
@@ -636,6 +639,9 @@ func (h *Handler) GetSettings(c *gin.Context) {
 
 func (h *Handler) UpdateSettings(c *gin.Context) {
 	var req struct {
+		BusinessName      *string `json:"business_name"`
+		SupportEmail      *string `json:"support_email"`
+		WebhookURL        *string `json:"webhook_url"`
 		NombaAccountID    *string `json:"nomba_account_id"`
 		NombaSubaccountID *string `json:"nomba_subaccount_id"`
 		NombaClientID     *string `json:"nomba_client_id"`
@@ -644,6 +650,33 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		render.Err(c, http.StatusBadRequest, "bad_request", "invalid JSON body")
 		return
+	}
+	if req.BusinessName != nil {
+		businessName := strings.TrimSpace(*req.BusinessName)
+		if businessName == "" {
+			render.ValidationErr(c, map[string]string{"business_name": "business_name is required"})
+			return
+		}
+		req.BusinessName = &businessName
+	}
+	if req.SupportEmail != nil {
+		supportEmail := strings.TrimSpace(*req.SupportEmail)
+		if _, err := mail.ParseAddress(supportEmail); err != nil {
+			render.ValidationErr(c, map[string]string{"support_email": "support_email must be a valid email"})
+			return
+		}
+		req.SupportEmail = &supportEmail
+	}
+	if req.WebhookURL != nil {
+		webhookURL := strings.TrimSpace(*req.WebhookURL)
+		if webhookURL != "" {
+			u, err := url.ParseRequestURI(webhookURL)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				render.ValidationErr(c, map[string]string{"webhook_url": "webhook_url must be a valid http(s) URL"})
+				return
+			}
+		}
+		req.WebhookURL = &webhookURL
 	}
 	if req.NombaClientSecret != nil {
 		enc, err := crypto.EncryptSecret(h.cfg.MasterEncryptionKey, *req.NombaClientSecret)
@@ -657,6 +690,9 @@ func (h *Handler) UpdateSettings(c *gin.Context) {
 	if err := h.tenantQ(c, func(q *db.Queries) (e error) {
 		t, e = q.UpdateTenantSettings(c.Request.Context(), db.UpdateTenantSettingsParams{
 			ID:                middleware.TenantID(c),
+			BusinessName:      req.BusinessName,
+			SupportEmail:      req.SupportEmail,
+			WebhookUrl:        req.WebhookURL,
 			NombaAccountID:    req.NombaAccountID,
 			NombaSubaccountID: req.NombaSubaccountID,
 			NombaClientID:     req.NombaClientID,
