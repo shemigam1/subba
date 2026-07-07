@@ -63,6 +63,9 @@ export function LandingClient() {
           <a href="#how-it-works" className="hover:text-slate-900">
             How it works
           </a>
+          <a href="/openapi.yaml" target="_blank" rel="noreferrer" className="hover:text-slate-900">
+            API Docs
+          </a>
           <Link href="/pay/access" className="hover:text-slate-900">
             Customer portal
           </Link>
@@ -269,7 +272,10 @@ console.log(sub.status); // "active"`}
           <div className="flex justify-center md:justify-start">
             <SubbaLogo size="sm" showText={true} />
           </div>
-          <div className="mt-8 md:mt-0">
+          <div className="mt-8 md:mt-0 flex flex-col md:flex-row items-center gap-4 md:gap-8">
+            <a href="/openapi.yaml" target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-900">
+              API Documentation
+            </a>
             <p className="text-center text-sm leading-5 text-slate-500">
               &copy; {new Date().getFullYear()} Subba Inc. All rights reserved.
             </p>
