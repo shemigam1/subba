@@ -159,6 +159,8 @@ type Money struct {
 }
 
 type Settings struct {
+	BusinessName         string  `json:"business_name"`
+	SupportEmail         *string `json:"support_email"`
 	NombaAccountID       *string `json:"nomba_account_id"`
 	NombaSubaccountID    *string `json:"nomba_subaccount_id"`
 	NombaClientID        *string `json:"nomba_client_id"`
@@ -169,6 +171,8 @@ type Settings struct {
 
 func FromSettings(t db.Tenant) Settings {
 	return Settings{
+		BusinessName:         t.Name,
+		SupportEmail:         t.SupportEmail,
 		NombaAccountID:       t.NombaAccountID,
 		NombaSubaccountID:    t.NombaSubaccountID,
 		NombaClientID:        t.NombaClientID,

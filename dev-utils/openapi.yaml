@@ -802,6 +802,8 @@ components:
     Settings:
       type: object
       properties:
+        business_name: { type: string }
+        support_email: { type: [string, 'null'] }
         nomba_account_id: { type: [string, 'null'] }
         nomba_subaccount_id: { type: [string, 'null'], description: Revenue-split target }
         nomba_client_id: { type: [string, 'null'] }
@@ -811,6 +813,9 @@ components:
     SettingsInput:
       type: object
       properties:
+        business_name: { type: string }
+        support_email: { type: string }
+        webhook_url: { type: string }
         nomba_account_id: { type: string }
         nomba_subaccount_id: { type: string }
         nomba_client_id: { type: string }
@@ -857,3 +862,4 @@ components:
         account_number: { type: string }
         account_name: { type: string }
         amount_due: { $ref: '#/components/schemas/Money' }
+

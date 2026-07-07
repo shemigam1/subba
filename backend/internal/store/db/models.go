@@ -119,4 +119,5 @@ type Tenant struct {
 	NombaSubaccountID *string   `json:"nomba_subaccount_id"`
 	WebhookUrl        *string   `json:"webhook_url"`
 	WebhookSecret     *string   `json:"webhook_secret"`
+	SupportEmail      *string   `json:"support_email"`
 }
