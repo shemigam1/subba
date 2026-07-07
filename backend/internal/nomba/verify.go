@@ -3,38 +3,15 @@ package nomba
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
+	"crypto/sha512"
+	"encoding/hex"
 	"fmt"
 )
 
-// VerifyParams holds the individual fields extracted from the parsed webhook
-// payload and headers that Nomba uses to construct the HMAC signature.
-//
-// Nomba does NOT sign the raw HTTP body. Instead, it concatenates these
-// specific fields in a strict order separated by colons, appends the
-// nomba-timestamp header, then HMAC-SHA256 + Base64 encodes the result.
-type VerifyParams struct {
-	EventType       string // payload.event_type
-	RequestID       string // payload.requestId
-	UserID          string // payload.data.merchant.userId
-	WalletID        string // payload.data.merchant.walletId
-	TransactionID   string // payload.data.transaction.transactionId
-	TransactionType string // payload.data.transaction.type
-	TransactionTime string // payload.data.transaction.time
-	ResponseCode    string // payload.data.transaction.responseCode (empty string if "null")
-	Timestamp       string // nomba-timestamp HTTP header
-}
-
-// Verify checks a Nomba webhook's signature using the proprietary algorithm
-// documented at developer.nomba.com.
-//
-// The signature is constructed by:
-//  1. Concatenating 8 payload fields + the nomba-timestamp header with ":" separators
-//  2. Computing HMAC-SHA256 of that string using the webhook secret key
-//  3. Base64-encoding the resulting hash
-//
-// Returns nil if the signature is valid.
-func Verify(params VerifyParams, signature, secret string) error {
+// Verify checks a Nomba webhook's signature using standard HMAC on the raw HTTP body.
+// Nomba documentation generally specifies HMAC-SHA256 (and sometimes SHA512).
+// This function attempts to verify the signature using both algorithms, encoded as a hex string.
+func Verify(rawBody []byte, signature, secret string) error {
 	if signature == "" {
 		return fmt.Errorf("missing nomba-signature header")
 	}
@@ -42,34 +19,23 @@ func Verify(params VerifyParams, signature, secret string) error {
 		return fmt.Errorf("webhook secret not configured")
 	}
 
-	// Nomba treats "null" response codes as empty strings.
-	responseCode := params.ResponseCode
-	if responseCode == "null" {
-		responseCode = ""
+	secretBytes := []byte(secret)
+
+	// Check SHA-256
+	mac256 := hmac.New(sha256.New, secretBytes)
+	mac256.Write(rawBody)
+	expected256 := hex.EncodeToString(mac256.Sum(nil))
+	if hmac.Equal([]byte(signature), []byte(expected256)) {
+		return nil
 	}
 
-	// Build the exact hashing payload Nomba uses.
-	// Format: eventType:requestId:userId:walletId:transactionId:type:time:responseCode:timestamp
-	hashingPayload := fmt.Sprintf(
-		"%s:%s:%s:%s:%s:%s:%s:%s:%s",
-		params.EventType,
-		params.RequestID,
-		params.UserID,
-		params.WalletID,
-		params.TransactionID,
-		params.TransactionType,
-		params.TransactionTime,
-		responseCode,
-		params.Timestamp,
-	)
-
-	// HMAC-SHA256 → Base64
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write([]byte(hashingPayload))
-	expected := base64.StdEncoding.EncodeToString(h.Sum(nil))
-
-	if !hmac.Equal([]byte(expected), []byte(signature)) {
-		return fmt.Errorf("signature mismatch")
+	// Check SHA-512 (fallback)
+	mac512 := hmac.New(sha512.New, secretBytes)
+	mac512.Write(rawBody)
+	expected512 := hex.EncodeToString(mac512.Sum(nil))
+	if hmac.Equal([]byte(signature), []byte(expected512)) {
+		return nil
 	}
-	return nil
+
+	return fmt.Errorf("signature mismatch")
 }
