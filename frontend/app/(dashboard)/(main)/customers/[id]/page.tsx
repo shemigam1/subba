@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, User, CreditCard, Link as LinkIcon, Loader2, Plus, X, Trash2, Pencil } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,8 +16,8 @@ type Plan = components["schemas"]["Plan"];
 
 type Invoice = components["schemas"]["Invoice"];
 
-export default function CustomerDetailPage({ params }: { params: { id: string } }) {
-  const customerId = params.id;
+export default function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: customerId } = use(params);
   const queryClient = useQueryClient();
   const [portalLink, setPortalLink] = useState("");
   
