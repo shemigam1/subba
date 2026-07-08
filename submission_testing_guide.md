@@ -31,3 +31,17 @@ You can test the application using our live hosted URLs:
    - Once a payment is completed (or a transfer is made to the Virtual Account), Nomba fires a webhook to our Go backend.
    - We perform standard **HMAC-SHA256 signature verification** on the raw HTTP body to ensure absolute security.
    - The webhook is then published to a RabbitMQ Topic Exchange, fanning out to isolated consumers to update the subscription state, ensuring exactly-once processing even during high-volume bursts.
+
+5. **Testing the REST API (API-First Design):**
+   Subba was built strictly API-first. You can interface with our backend headless via REST, just like Stripe! Here is how to test it:
+   - On the Merchant Dashboard, navigate to **Settings > API Keys** (or via the sidebar).
+   - Click **Generate Key** and copy your `subba_live_...` secret token.
+   - Open your terminal and run a `cURL` request to create a customer directly:
+
+   ```bash
+   curl -X POST https://asbestos-dale-serve-checks.trycloudflare.com/v1/customers \
+     -H "Authorization: Bearer YOUR_API_KEY_HERE" \
+     -H "Content-Type: application/json" \
+     -d '{"name": "API Test Customer", "email": "api-test@example.com"}'
+   ```
+   - *Bonus:* Go back to your merchant dashboard, and you will see the customer was instantly created, complete with a provisioned Nomba Virtual Account!
