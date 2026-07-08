@@ -324,7 +324,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 
 	// Skip virtual-account provisioning when no Nomba client is configured (e.g. tests).
 	if h.nomba == nil {
-		render.JSON(c, http.StatusCreated, dto.FromCustomer(cust))
+		render.JSON(c, http.StatusCreated, dto.FromCustomer(cust, nil, nil))
 		return
 	}
 	// Create the virtual account on Nomba

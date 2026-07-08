@@ -142,7 +142,7 @@ func (h *Handler) Me(c *gin.Context) {
 func (h *Handler) context(c *gin.Context, tenantID, customerID uuid.UUID) dto.PortalContext {
 	var ctx dto.PortalContext
 	if cust, err := db.New(h.admin).GetCustomer(c.Request.Context(), customerID); err == nil {
-		ctx.Customer = dto.FromCustomer(cust)
+		ctx.Customer = dto.FromCustomer(cust, nil, nil)
 	}
 	if t, err := db.New(h.admin).GetTenantByID(c.Request.Context(), tenantID); err == nil {
 		ctx.TenantBranding.TenantName = t.Name

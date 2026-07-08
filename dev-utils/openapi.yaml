@@ -716,6 +716,7 @@ components:
         email: { type: string, format: email }
         has_card_on_file: { type: boolean }
         created_at: { type: string, format: date-time }
+        subscription: { $ref: '#/components/schemas/Subscription' }
     CustomerInput:
       type: object
       required: [email]

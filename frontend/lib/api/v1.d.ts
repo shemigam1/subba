@@ -1492,6 +1492,7 @@ export interface components {
             has_card_on_file?: boolean;
             /** Format: date-time */
             created_at?: string;
+            subscription?: components["schemas"]["Subscription"];
         };
         CustomerInput: {
             name?: string;
@@ -1695,4 +1696,3 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export type operations = Record<string, never>;
-

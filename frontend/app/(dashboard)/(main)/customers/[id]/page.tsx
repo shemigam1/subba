@@ -37,7 +37,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
         params: { path: { id: customerId } }
       });
       if (error) throw error;
-      return data as Customer & { subscription?: Subscription };
+      return data;
     },
   });
 

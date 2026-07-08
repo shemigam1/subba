@@ -71,7 +71,10 @@ A full backend-vs-contract-vs-frontend audit found and fixed:
 2. **Float math on money** in `CreateCheckoutLink` (`fmt.Sprintf("%.2f", float64(amount)/100)`) → replaced with integer math (`%d.%02d`).
 3. **Checkout endpoint was undocumented and unused** — added to `dev-utils/openapi.yaml`, regenerated `v1.d.ts`, wired a "Pay with card" button on the portal invoice detail page.
 4. **No dashboard sign-out existed** — sidebar footer showed a hardcoded "Jane Doe"; now shows the real tenant (from `useUser`) with a working sign-out (POST /auth/logout + clear token + redirect).
-5. **Phantom fields on the customer detail page** — `phone` (collected/PATCHed but not in the schema; silently dropped), invoice `created_at` (API sends `issued_at`; the Date column rendered garbage), `invoice_url` (never returned; dead column). All removed; every call on that page is now typed (no `api as any` remains in the app).
+7. **Phantom fields on the customer detail page** — `phone` (collected/PATCHed but not in the schema; silently dropped), invoice `created_at` (API sends `issued_at`; the Date column rendered garbage), `invoice_url` (never returned; dead column). All removed; every call on that page is now typed (no `api as any` remains in the app).
+8. **Missing Subscription in Live App** — `FromCustomer` was updated to accept `subscription` and `plan` to attach them to the response, but two legacy calls to `dto.FromCustomer(cust)` in `dashboard.go` and `portal.go` were not updated. This caused the Go build to fail in the GitHub Actions CD pipeline (`deploy.yml`), which means the live EC2 backend never deployed the fix. Fixed the compilation errors and successfully triggered a clean deploy.
+9. **OpenAPI Schema Sync** — The `Customer` schema in `openapi.yaml` was updated to include the `subscription` reference, and frontend types (`v1.d.ts`) were regenerated. Removed the manual `as Customer & { subscription?: Subscription }` hack from the UI.
+
 Verified after fixes: `go build`/`go vet` clean, full backend test suite green against live infra, `tsc` clean (except the known next.config quirk), `next build` passes (15 routes).
 
 ## 6. How to Continue Development Safely
