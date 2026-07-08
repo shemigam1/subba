@@ -5,7 +5,7 @@ Subba is an enterprise-grade, event-driven subscription layer. We chose to focus
 **Prerequisites:**
 You can test the application using our live hosted URLs:
 - **Dashboard URL:** https://subba-theta.vercel.app
-- **API URL:** https://asbestos-dale-serve-checks.trycloudflare.com
+- **API URL:** https://asbestos-dale-serve-checks.trycloudflare.com/v1
 
 **Step-by-Step Walkthrough:**
 
