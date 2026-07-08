@@ -9,11 +9,13 @@ You can test the application using our live hosted URLs:
 
 **Step-by-Step Walkthrough:**
 
-1. **Merchant Onboarding:**
-   - Visit the Dashboard URL and click **Sign Up**. 
-   - Create a test account. Our system uses secure Bearer token authentication to handle cross-site domain restrictions smoothly.
-   - Go to **Plans** and create a recurring plan (e.g., "Monthly Premium").
-   - Go to **Customers** and add a test customer with your email address.
+1. **Merchant Onboarding & Access:**
+   - Visit the Dashboard URL and click **Login**. 
+   - Use our pre-configured demo account to bypass signup:
+     - **Email:** `demo@subba.com`
+     - **Password:** `SubbaDemo2026!`
+   - (Our system uses secure Bearer token authentication to handle cross-site domain restrictions smoothly).
+   - Once logged in, navigate to **Customers** and click on the test customer.
 
 2. **The "Cardless" Moat (Virtual Accounts):**
    - Click on your newly created customer to view their profile.

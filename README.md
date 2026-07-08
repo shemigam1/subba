@@ -33,6 +33,11 @@ Implementing recurring billing at scale is notoriously difficult. Developers are
 - **Live Frontend (Vercel):** https://subba-theta.vercel.app
 - **Live API Endpoint (Cloudflare Tunnel):** https://asbestos-dale-serve-checks.trycloudflare.com/v1
 
+## Demo Credentials (For Reviewers)
+To bypass the signup flow, please use the following credentials on the Live Frontend:
+- **Email:** `demo@subba.com`
+- **Password:** `SubbaDemo2026!`
+
 ## Key Features
 
 - **Event-Driven Core:** A RabbitMQ Topic Exchange fanout topology that processes Nomba webhooks asynchronously, ensuring that invoicing and state management are strictly decoupled.

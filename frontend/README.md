@@ -5,6 +5,11 @@ This is the Next.js App Router frontend for the **Subba** subscription engine.
 ## Live Deployment
 - **Live Frontend (Vercel):** https://subba-theta.vercel.app
 
+## Demo Credentials (For Reviewers)
+To bypass the signup flow, please use the following credentials on the Live Frontend:
+- **Email:** `demo@subba.com`
+- **Password:** `SubbaDemo2026!`
+
 ## Overview
 
 The frontend is divided into two primary isolated experiences:
