@@ -281,11 +281,11 @@ func (h *Handler) ListCustomers(c *gin.Context) {
 		render.Err(c, http.StatusInternalServerError, "internal", "could not list customers")
 		return
 	}
-	data := make([]dto.Customer, 0, len(customers))
+	out := make([]dto.Customer, 0, len(customers))
 	for _, cu := range customers {
-		data = append(data, dto.FromCustomer(cu))
+		out = append(out, dto.FromCustomer(cu, nil, nil))
 	}
-	render.JSON(c, http.StatusOK, gin.H{"data": data, "next_cursor": nil})
+	render.JSON(c, http.StatusOK, gin.H{"data": out, "next_cursor": nil})
 }
 
 func (h *Handler) CreateCustomer(c *gin.Context) {
@@ -353,7 +353,7 @@ func (h *Handler) CreateCustomer(c *gin.Context) {
 		})
 	}
 
-	render.JSON(c, http.StatusCreated, dto.FromCustomer(cust))
+	render.JSON(c, http.StatusCreated, dto.FromCustomer(cust, nil, nil))
 }
 
 func (h *Handler) GetCustomer(c *gin.Context) {
@@ -363,9 +363,20 @@ func (h *Handler) GetCustomer(c *gin.Context) {
 		return
 	}
 	var cust db.Customer
+	var sub *db.Subscription
+	var plan *db.Plan
 	err = h.tenantQ(c, func(q *db.Queries) (e error) {
 		cust, e = q.GetCustomer(c.Request.Context(), id)
-		return
+		if e != nil {
+			return e
+		}
+		if s, err := q.GetSubscriptionByCustomer(c.Request.Context(), id); err == nil {
+			sub = &s
+			if p, err := q.GetPlan(c.Request.Context(), s.PlanID); err == nil {
+				plan = &p
+			}
+		}
+		return nil
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		render.Err(c, http.StatusNotFound, "not_found", "customer not found")
@@ -375,7 +386,7 @@ func (h *Handler) GetCustomer(c *gin.Context) {
 		render.Err(c, http.StatusInternalServerError, "internal", "could not get customer")
 		return
 	}
-	render.JSON(c, http.StatusOK, dto.FromCustomer(cust))
+	render.JSON(c, http.StatusOK, dto.FromCustomer(cust, sub, plan))
 }
 
 func (h *Handler) UpdateCustomer(c *gin.Context) {
@@ -405,7 +416,7 @@ func (h *Handler) UpdateCustomer(c *gin.Context) {
 		render.Err(c, http.StatusInternalServerError, "internal", "could not update customer")
 		return
 	}
-	render.JSON(c, http.StatusOK, dto.FromCustomer(cust))
+	render.JSON(c, http.StatusOK, dto.FromCustomer(cust, nil, nil))
 }
 
 func (h *Handler) ListCustomerInvoices(c *gin.Context) {

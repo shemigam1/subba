@@ -58,19 +58,25 @@ func FromPlan(p db.Plan) Plan {
 }
 
 type Customer struct {
-	ID            uuid.UUID `json:"id"`
-	Name          *string   `json:"name"`
-	Email         string    `json:"email"`
-	HasCardOnFile bool      `json:"has_card_on_file"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            uuid.UUID     `json:"id"`
+	Name          *string       `json:"name"`
+	Email         string        `json:"email"`
+	HasCardOnFile bool          `json:"has_card_on_file"`
+	CreatedAt     time.Time     `json:"created_at"`
+	Subscription  *Subscription `json:"subscription,omitempty"`
 }
 
-func FromCustomer(c db.Customer) Customer {
-	return Customer{
+func FromCustomer(c db.Customer, sub *db.Subscription, plan *db.Plan) Customer {
+	out := Customer{
 		ID: c.ID, Name: c.Name, Email: c.Email,
 		HasCardOnFile: c.NombaTokenKey != nil && *c.NombaTokenKey != "",
 		CreatedAt:     c.CreatedAt,
 	}
+	if sub != nil {
+		s := FromSubscription(*sub, plan)
+		out.Subscription = &s
+	}
+	return out
 }
 
 type Subscription struct {
