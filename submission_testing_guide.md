@@ -40,7 +40,7 @@ You can test the application using our live hosted URLs:
 
    ```bash
    curl -X POST https://asbestos-dale-serve-checks.trycloudflare.com/v1/customers \
-     -H "Authorization: Bearer YOUR_API_KEY_HERE" \
+     -H "Authorization: Bearer sk_live_fip0Lqe-K2BoLM_ctQ34glNXZWa-aR1X0PfiUpkC99Q" \
      -H "Content-Type: application/json" \
      -d '{"name": "API Test Customer", "email": "api-test@example.com"}'
    ```
